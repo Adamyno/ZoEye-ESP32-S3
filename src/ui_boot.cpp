@@ -41,6 +41,9 @@ static void fadeOutCompleteCb(lv_anim_t * a) {
 
 // Timer: after 2s hold, fade out
 static void holdTimerCb(lv_timer_t * timer) {
+    // Hide canvas first — it doesn't support parent opacity inheritance
+    if (carCanvas) lv_obj_add_flag(carCanvas, LV_OBJ_FLAG_HIDDEN);
+
     lv_anim_t fadeOut;
     lv_anim_init(&fadeOut);
     lv_anim_set_var(&fadeOut, bootScreen);
