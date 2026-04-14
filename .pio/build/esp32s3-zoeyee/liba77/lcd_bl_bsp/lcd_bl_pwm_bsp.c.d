@@ -1,0 +1,22 @@
+.pio/build/esp32s3-zoeyee/liba77/lcd_bl_bsp/lcd_bl_pwm_bsp.c.o: \
+ lib/lcd_bl_bsp/lcd_bl_pwm_bsp.c \
+ /home/adam/.platformio/packages/framework-arduinoespressif32-libs/esp32s3/include/newlib/platform_include/stdio.h \
+ /home/adam/.platformio/packages/framework-arduinoespressif32-libs/esp32s3/qio_opi/include/sdkconfig.h \
+ lib/lcd_bl_bsp/lcd_bl_pwm_bsp.h \
+ /home/adam/.platformio/packages/framework-arduinoespressif32-libs/esp32s3/include/esp_common/include/esp_err.h \
+ /home/adam/.platformio/packages/framework-arduinoespressif32-libs/esp32s3/include/esp_common/include/esp_compiler.h \
+ /home/adam/.platformio/packages/framework-arduinoespressif32-libs/esp32s3/include/esp_driver_ledc/include/driver/ledc.h \
+ /home/adam/.platformio/packages/framework-arduinoespressif32-libs/esp32s3/include/esp_hw_support/include/esp_intr_alloc.h \
+ /home/adam/.platformio/packages/framework-arduinoespressif32-libs/esp32s3/include/esp_hw_support/include/esp_intr_types.h \
+ /home/adam/.platformio/packages/framework-arduinoespressif32-libs/esp32s3/include/hal/include/hal/ledc_types.h \
+ /home/adam/.platformio/packages/framework-arduinoespressif32-libs/esp32s3/include/soc/esp32s3/include/soc/soc_caps.h \
+ /home/adam/.platformio/packages/framework-arduinoespressif32-libs/esp32s3/include/soc/esp32s3/include/soc/clk_tree_defs.h \
+ /home/adam/.platformio/packages/framework-arduinoespressif32-libs/esp32s3/include/esp_driver_gpio/include/driver/gpio.h \
+ /home/adam/.platformio/packages/framework-arduinoespressif32-libs/esp32s3/include/hal/include/hal/gpio_types.h \
+ /home/adam/.platformio/packages/framework-arduinoespressif32-libs/esp32s3/include/soc/esp32s3/include/soc/gpio_num.h \
+ /home/adam/.platformio/packages/framework-arduinoespressif32-libs/esp32s3/include/esp_common/include/esp_bit_defs.h \
+ /home/adam/.platformio/packages/framework-arduinoespressif32-libs/esp32s3/include/esp_rom/include/esp_rom_gpio.h \
+ /home/adam/.platformio/packages/framework-arduinoespressif32-libs/esp32s3/include/soc/esp32s3/include/soc/gpio_pins.h \
+ /home/adam/.platformio/packages/framework-arduinoespressif32-libs/esp32s3/include/esp_driver_gpio/include/driver/gpio_etm.h \
+ /home/adam/.platformio/packages/framework-arduinoespressif32-libs/esp32s3/include/esp_hw_support/include/esp_etm.h \
+ include/user_config.h
