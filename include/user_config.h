@@ -46,7 +46,7 @@
 
 #define USER_DISP_ROT_90    1
 #define USER_DISP_ROT_NONO  0
-#define Rotated USER_DISP_ROT_NONO   //软件实现旋转
+#define Rotated USER_DISP_ROT_90   // Landscape mode (640x172)
 
 
 

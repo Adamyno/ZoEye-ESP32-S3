@@ -619,4 +619,5 @@
  .pio/libdeps/esp32s3-zoeyee/lvgl/src/lv_api_map_v9_1.h \
  .pio/libdeps/esp32s3-zoeyee/lvgl/src/lv_api_map_v9_2.h \
  .pio/libdeps/esp32s3-zoeyee/lvgl/src/lv_api_map_v9_3.h \
- .pio/libdeps/esp32s3-zoeyee/lvgl/src/lv_api_map_v9_4.h
+ .pio/libdeps/esp32s3-zoeyee/lvgl/src/lv_api_map_v9_4.h \
+ include/ui_dashboard.h
