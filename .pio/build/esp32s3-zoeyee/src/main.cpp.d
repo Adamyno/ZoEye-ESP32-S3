@@ -620,9 +620,9 @@
  .pio/libdeps/esp32s3-zoeyee/lvgl/src/lv_api_map_v9_2.h \
  .pio/libdeps/esp32s3-zoeyee/lvgl/src/lv_api_map_v9_3.h \
  .pio/libdeps/esp32s3-zoeyee/lvgl/src/lv_api_map_v9_4.h include/ui_boot.h \
- include/ui_dashboard.h include/obd_globals.h \
+ include/obd_globals.h \
  /home/adam/.platformio/packages/framework-arduinoespressif32/libraries/Preferences/src/Preferences.h \
- include/ObdManager.h \
+ include/ui_dashboard.h include/ObdManager.h \
  .pio/libdeps/esp32s3-zoeyee/NimBLE-Arduino/src/NimBLEDevice.h \
  .pio/libdeps/esp32s3-zoeyee/NimBLE-Arduino/src/NimBLECppVersion.h \
  .pio/libdeps/esp32s3-zoeyee/NimBLE-Arduino/src/nimconfig.h \

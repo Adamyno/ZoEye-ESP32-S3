@@ -4,7 +4,7 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/semphr.h>
 
-#define ZOEYE_VERSION "1.1.0-S3"
+#define ZOEYEE_VERSION "v1.1.0-S3"
 
 // HVAC Polling State Machine (non-blocking)
 enum HvacPollState {

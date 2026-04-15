@@ -1,8 +1,7 @@
 #pragma once
 
 #include "lvgl.h"
-
-#define ZOEYEE_VERSION "v0.2.0"
+#include "obd_globals.h"  // ZOEYE_VERSION is defined there
 
 namespace UiBoot {
     // Show boot splash, calls onComplete when animation finishes

@@ -406,7 +406,7 @@ static void showInfoMenu(void) {
   // Row: Version
   {
     lv_obj_t *r = lv_label_create(cont);
-    snprintf(buf, sizeof(buf), "Software Version: #00ffff %s#", ZOEYE_VERSION);
+    snprintf(buf, sizeof(buf), "Software Version: #00ffff %s#", ZOEYEE_VERSION);
     lv_label_set_text(r, buf);
     lv_label_set_recolor(r, true);
     lv_obj_set_style_text_font(r, &lv_font_montserrat_16, 0);
@@ -893,6 +893,14 @@ static void connectBtnCb(lv_event_t *e) {
   Serial.printf("[Settings] Connecting to %s [%s]\n", name.c_str(),
                 mac.c_str());
   bool ok = BluetoothManager::connectByMAC(mac);
+
+  // Also check actual connection state (onConnect callback may have set it)
+  if (!ok) {
+    if (xSemaphoreTake(obdDataMutex, pdMS_TO_TICKS(200)) == pdTRUE) {
+      ok = isBluetoothConnected;
+      xSemaphoreGive(obdDataMutex);
+    }
+  }
 
   if (ok) {
     Serial.println("[Settings] BT Connected!");

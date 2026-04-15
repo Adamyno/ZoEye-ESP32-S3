@@ -448,7 +448,7 @@
  .pio/libdeps/esp32s3-zoeyee/lvgl/src/lv_api_map_v9_2.h \
  .pio/libdeps/esp32s3-zoeyee/lvgl/src/lv_api_map_v9_3.h \
  .pio/libdeps/esp32s3-zoeyee/lvgl/src/lv_api_map_v9_4.h \
- include/ui_dashboard.h include/zoe_logo.h \
+ include/obd_globals.h \
  /home/adam/.platformio/packages/framework-arduinoespressif32/cores/esp32/Arduino.h \
  /home/adam/.platformio/packages/framework-arduinoespressif32-libs/esp32s3/include/newlib/platform_include/stdio.h \
  /home/adam/.platformio/packages/framework-arduinoespressif32/cores/esp32/esp_arduino_version.h \
@@ -615,4 +615,6 @@
  /home/adam/.platformio/packages/framework-arduinoespressif32-libs/esp32s3/include/esp_hw_support/include/hal/cpu_ll.h \
  /home/adam/.platformio/packages/framework-arduinoespressif32/cores/esp32/freertos_stats.h \
  /home/adam/.platformio/packages/framework-arduinoespressif32/cores/esp32/io_pin_remap.h \
- /home/adam/.platformio/packages/framework-arduinoespressif32/cores/esp32/Arduino.h
+ /home/adam/.platformio/packages/framework-arduinoespressif32/cores/esp32/Arduino.h \
+ /home/adam/.platformio/packages/framework-arduinoespressif32/libraries/Preferences/src/Preferences.h \
+ include/ui_dashboard.h include/zoe_logo.h
