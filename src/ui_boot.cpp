@@ -41,19 +41,45 @@ static void fadeOutCompleteCb(lv_anim_t * a) {
 
 // Timer: after 2s hold, fade out
 static void holdTimerCb(lv_timer_t * timer) {
-    // Hide canvas first — it doesn't support parent opacity inheritance
-    if (carCanvas) lv_obj_add_flag(carCanvas, LV_OBJ_FLAG_HIDDEN);
-
-    lv_anim_t fadeOut;
-    lv_anim_init(&fadeOut);
-    lv_anim_set_var(&fadeOut, bootScreen);
-    lv_anim_set_values(&fadeOut, LV_OPA_COVER, LV_OPA_TRANSP);
-    lv_anim_set_duration(&fadeOut, 400);
-    lv_anim_set_exec_cb(&fadeOut, [](void * obj, int32_t val) {
-        lv_obj_set_style_opa((lv_obj_t *)obj, (lv_opa_t)val, 0);
+    // Car slides out to the left (drives away)
+    lv_anim_t carOut;
+    lv_anim_init(&carOut);
+    lv_anim_set_var(&carOut, carCanvas);
+    lv_anim_set_values(&carOut, lv_obj_get_x(carCanvas), -ZOE_W - 20);
+    lv_anim_set_duration(&carOut, 600);
+    lv_anim_set_path_cb(&carOut, lv_anim_path_ease_in);
+    lv_anim_set_exec_cb(&carOut, [](void * obj, int32_t val) {
+        lv_obj_set_x((lv_obj_t *)obj, val);
     });
-    lv_anim_set_completed_cb(&fadeOut, fadeOutCompleteCb);
-    lv_anim_start(&fadeOut);
+    lv_anim_start(&carOut);
+
+    // Text elements fade out simultaneously
+    auto fadeObj = [](lv_obj_t * obj, uint32_t delay) {
+        lv_anim_t a;
+        lv_anim_init(&a);
+        lv_anim_set_var(&a, obj);
+        lv_anim_set_values(&a, LV_OPA_COVER, LV_OPA_TRANSP);
+        lv_anim_set_duration(&a, 500);
+        lv_anim_set_delay(&a, delay);
+        lv_anim_set_exec_cb(&a, [](void * o, int32_t val) {
+            lv_obj_set_style_opa((lv_obj_t *)o, (lv_opa_t)val, 0);
+        });
+        lv_anim_start(&a);
+    };
+    fadeObj(lineAccent, 0);
+    fadeObj(lblLogo, 0);
+    fadeObj(lblVersion, 0);
+
+    // After everything is done, delete boot screen
+    lv_anim_t cleanup;
+    lv_anim_init(&cleanup);
+    lv_anim_set_var(&cleanup, bootScreen);
+    lv_anim_set_values(&cleanup, 0, 1);
+    lv_anim_set_duration(&cleanup, 100);
+    lv_anim_set_delay(&cleanup, 700);
+    lv_anim_set_exec_cb(&cleanup, [](void * obj, int32_t val) { (void)obj; (void)val; });
+    lv_anim_set_completed_cb(&cleanup, fadeOutCompleteCb);
+    lv_anim_start(&cleanup);
 }
 
 // Car arrived → show line, logo, version, then hold 2s

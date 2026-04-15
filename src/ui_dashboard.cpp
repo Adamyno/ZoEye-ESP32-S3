@@ -1,6 +1,8 @@
 #include "ui_dashboard.h"
 #include "lvgl.h"
 #include <cstdio>
+#include "obd_globals.h"
+#include "ui_settings.h"
 
 // ─── Internal state ───────────────────────────────────────
 static lv_obj_t * topBar       = NULL;
@@ -30,6 +32,10 @@ static lv_obj_t * createFilledWidget(lv_obj_t * parent, int w, int h,
 static void tileviewEventCb(lv_event_t * e);
 static void updatePageDots(int activePage);
 static void getWidgetDimensions(int * outW, int * outH);
+static void obd_gui_update_timer_cb(lv_timer_t * timer);
+static void menuBtnClickCb(lv_event_t * e);
+
+static lv_timer_t * obdUpdateTimer = NULL;
 
 // ═══════════════════════════════════════════════════════════
 //  Public API
@@ -43,6 +49,8 @@ void UiDashboard::init(void) {
     createTopBar(screen);
     createTileview(screen);
     updatePageDots(0);
+
+    obdUpdateTimer = lv_timer_create(obd_gui_update_timer_cb, 500, NULL);
 }
 
 void UiDashboard::setPage(int page) {
@@ -140,6 +148,7 @@ static void createTopBar(lv_obj_t * parent) {
     lv_obj_set_style_text_color(lblMenu, COLOR_TEXT_SECONDARY, 0);
     lv_obj_set_style_text_font(lblMenu, &lv_font_montserrat_14, 0);
     lv_obj_center(lblMenu);
+    lv_obj_add_event_cb(btnMenu, menuBtnClickCb, LV_EVENT_CLICKED, NULL);
 
     // Page dot indicators (left of menu button)
     int dotSize = 6;
@@ -399,7 +408,7 @@ static void updatePageDots(int activePage) {
 }
 
 // ═══════════════════════════════════════════════════════════
-//  Event callbacks
+//  Event callbacks and LVGL Timers
 // ═══════════════════════════════════════════════════════════
 
 static void tileviewEventCb(lv_event_t * e) {
@@ -410,4 +419,98 @@ static void tileviewEventCb(lv_event_t * e) {
     int32_t col = lv_obj_get_x(tile) / SCREEN_W;
     curPage = col;
     updatePageDots(curPage);
+}
+
+static void obd_gui_update_timer_cb(lv_timer_t * timer) {
+    if (xSemaphoreTake(obdDataMutex, 0) == pdTRUE) {
+
+        // ── BT Status Icon ──
+        static bool btBlinkState = false;
+        btBlinkState = !btBlinkState;
+        
+        if (bleConnecting) {
+            // Blink BT icon yellow during connecting
+            lv_label_set_text(lblBt, btBlinkState ? LV_SYMBOL_BLUETOOTH : " ");
+            lv_obj_set_style_text_color(lblBt, COLOR_YELLOW, 0);
+        } else if (isBluetoothConnected) {
+            // Solid BT icon blue when connected
+            lv_label_set_text(lblBt, LV_SYMBOL_BLUETOOTH);
+            lv_obj_set_style_text_color(lblBt, COLOR_ACCENT, 0);
+        } else {
+            lv_label_set_text(lblBt, " ");
+        }
+
+        // ── CAN Status Icon ──
+        static bool canBlinkState = false;
+        canBlinkState = !canBlinkState;
+        
+        if (isBluetoothConnected && !obdCanConnected) {
+            // BT connected but CAN not ready - blink yellow
+            lv_label_set_text(lblCan, canBlinkState ? LV_SYMBOL_CHARGE : " ");
+            lv_obj_set_style_text_color(lblCan, COLOR_YELLOW, 0);
+        } else if (obdCanConnected) {
+            // CAN connected - show solid or blink on data exchange
+            bool recentData = (millis() - lastOBDRxTime < 1000);
+            static bool dataBlinkState = false;
+            if (recentData) dataBlinkState = !dataBlinkState;
+            else dataBlinkState = true; // solid when idle
+            lv_label_set_text(lblCan, LV_SYMBOL_CHARGE);
+            lv_obj_set_style_text_color(lblCan, 
+                (recentData && !dataBlinkState) ? COLOR_BG : COLOR_GREEN, 0);
+        } else {
+            lv_label_set_text(lblCan, " ");
+        }
+
+        // ── Widget data updates ──
+        if (widgetCards[0][0] != NULL && obdSOC >= 0) {
+            lv_obj_t * lblValue = lv_obj_get_child(widgetCards[0][0], 1);
+            lv_obj_t * bar = lv_obj_get_child(widgetCards[0][0], 3);
+            if (lblValue && bar) {
+                char buf[16];
+                snprintf(buf, sizeof(buf), "%.0f", obdSOC);
+                lv_label_set_text(lblValue, buf);
+                lv_bar_set_value(bar, (int)obdSOC, LV_ANIM_ON);
+            }
+        }
+        
+        if (widgetCards[0][1] != NULL && obdCellVoltageMax > 0) {
+            lv_obj_t * lblValue = lv_obj_get_child(widgetCards[0][1], 1);
+            lv_obj_t * bar = lv_obj_get_child(widgetCards[0][1], 3);
+            if (lblValue && bar) {
+                char buf[16];
+                float volts = obdCellVoltageMax * 96.0f;
+                snprintf(buf, sizeof(buf), "%.0f", volts);
+                lv_label_set_text(lblValue, buf);
+                int pct = (volts - 320) / (400 - 320) * 100;
+                if (pct < 0) pct = 0; if (pct > 100) pct = 100;
+                lv_bar_set_value(bar, pct, LV_ANIM_ON);
+            }
+        }
+        
+        if (widgetCards[0][2] != NULL && obdCabinTemp > -50) {
+            lv_obj_t * lblValue = lv_obj_get_child(widgetCards[0][2], 1);
+            if (lblValue) {
+                char buf[16];
+                snprintf(buf, sizeof(buf), "%.1f", obdCabinTemp);
+                lv_label_set_text(lblValue, buf);
+            }
+        }
+
+        if (widgetCards[0][3] != NULL && obdExtTemp > -50) {
+            lv_obj_t * lblValue = lv_obj_get_child(widgetCards[0][3], 1);
+            if (lblValue) {
+                char buf[16];
+                snprintf(buf, sizeof(buf), "%.1f", obdExtTemp);
+                lv_label_set_text(lblValue, buf);
+            }
+        }
+
+        xSemaphoreGive(obdDataMutex);
+    }
+}
+
+static void menuBtnClickCb(lv_event_t * e) {
+    if (!UiSettings::isVisible()) {
+        UiSettings::show();
+    }
 }
