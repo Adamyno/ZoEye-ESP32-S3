@@ -100,6 +100,7 @@ extern float obdCellVoltageMax;
 extern float obdCellVoltageMin;
 extern float obdMaxChargePower;
 extern float obdHumidity;
+extern float obdHVBatVoltage;
 
 // Polling configuration & tracking
 extern unsigned long lastOBDPollTime;

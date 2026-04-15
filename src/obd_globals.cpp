@@ -23,6 +23,7 @@ float obdCellVoltageMax = -1;
 float obdCellVoltageMin = -1;
 float obdMaxChargePower = -1;
 float obdHumidity = -1;
+float obdHVBatVoltage = -1;
 
 unsigned long lastOBDPollTime = 0;
 unsigned long lastOBDRxTime = 0;

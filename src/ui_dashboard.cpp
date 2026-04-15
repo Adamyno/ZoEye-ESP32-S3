@@ -30,6 +30,7 @@ static void createTopBar(lv_obj_t * parent);
 static void createTileview(lv_obj_t * parent);
 static void createWidgetSlots(lv_obj_t * tile, int pageIdx);
 static void createDemoWidgets(lv_obj_t * tile, int pageIdx);
+static void createPage2Widgets(lv_obj_t * tile, int pageIdx);
 static lv_obj_t * createCellVoltageWidget(lv_obj_t * parent, int w, int h);
 static lv_obj_t * createEmptySlot(lv_obj_t * parent, int w, int h);
 static lv_obj_t * createFilledWidget(lv_obj_t * parent, int w, int h,
@@ -192,9 +193,9 @@ static void createTileview(lv_obj_t * parent) {
     lv_obj_t * tile1 = lv_tileview_add_tile(tileview, 0, 0, LV_DIR_RIGHT);
     createDemoWidgets(tile1, 0);
 
-    // Page 2: Empty slots (to test swipe)
+    // Page 2: HV Battery + empty slots
     lv_obj_t * tile2 = lv_tileview_add_tile(tileview, 1, 0, LV_DIR_LEFT);
-    createWidgetSlots(tile2, 1);
+    createPage2Widgets(tile2, 1);
 
     // Register scroll event for page dot updates
     lv_obj_add_event_cb(tileview, tileviewEventCb, LV_EVENT_VALUE_CHANGED, NULL);
@@ -262,6 +263,33 @@ static void createDemoWidgets(lv_obj_t * tile, int pageIdx) {
                 demos[i].color, demos[i].barPct);
             lv_obj_set_pos(w, x, y);
             widgetCards[pageIdx][i] = w;
+        }
+    }
+}
+
+// ═══════════════════════════════════════════════════════════
+//  Page 2 Widgets (EVC data)
+// ═══════════════════════════════════════════════════════════
+
+static void createPage2Widgets(lv_obj_t * tile, int pageIdx) {
+    int widgetW, widgetH;
+    getWidgetDimensions(&widgetW, &widgetH);
+
+    for (int i = 0; i < WIDGET_COUNT; i++) {
+        int x = WIDGET_MARGIN + i * (widgetW + WIDGET_GAP);
+        int y = WIDGET_MARGIN;
+
+        if (i == 0) {
+            // HV Battery Voltage widget
+            lv_obj_t * w = createFilledWidget(tile, widgetW, widgetH,
+                "HV Battery", "--", "V", COLOR_ACCENT, 0);
+            lv_obj_set_pos(w, x, y);
+            widgetCards[pageIdx][i] = w;
+        } else {
+            // Empty slots for future widgets
+            lv_obj_t * slot = createEmptySlot(tile, widgetW, widgetH);
+            lv_obj_set_pos(slot, x, y);
+            widgetCards[pageIdx][i] = slot;
         }
     }
 }
@@ -367,7 +395,7 @@ static lv_obj_t * createFilledWidget(lv_obj_t * parent, int w, int h,
     lv_obj_t * lblName = lv_label_create(card);
     lv_label_set_text(lblName, name);
     lv_obj_set_style_text_color(lblName, COLOR_TEXT_SECONDARY, 0);
-    lv_obj_set_style_text_font(lblName, &lv_font_montserrat_12, 0);
+    lv_obj_set_style_text_font(lblName, &lv_font_montserrat_14, 0);
     lv_obj_align(lblName, LV_ALIGN_TOP_LEFT, 0, 0);
 
     // ── Big value + unit (center) ──
@@ -431,22 +459,22 @@ static lv_obj_t * createCellVoltageWidget(lv_obj_t * parent, int w, int h) {
     lv_obj_t * lblTitle = lv_label_create(card);
     lv_label_set_text(lblTitle, "Cell Voltages");
     lv_obj_set_style_text_color(lblTitle, COLOR_TEXT_SECONDARY, 0);
-    lv_obj_set_style_text_font(lblTitle, &lv_font_montserrat_10, 0);
+    lv_obj_set_style_text_font(lblTitle, &lv_font_montserrat_14, 0);
     lv_obj_align(lblTitle, LV_ALIGN_TOP_MID, 0, 0);
 
-    // ── "\xCE\x94V:" label ──
+    // ── "dV:" label ──
     lv_obj_t * lblDeltaLabel = lv_label_create(card);
-    lv_label_set_text(lblDeltaLabel, "\xCE\x94V:");
+    lv_label_set_text(lblDeltaLabel, "dV:");
     lv_obj_set_style_text_color(lblDeltaLabel, COLOR_TEXT_SECONDARY, 0);
-    lv_obj_set_style_text_font(lblDeltaLabel, &lv_font_montserrat_10, 0);
-    lv_obj_align(lblDeltaLabel, LV_ALIGN_TOP_LEFT, 0, 14);
+    lv_obj_set_style_text_font(lblDeltaLabel, &lv_font_montserrat_12, 0);
+    lv_obj_align(lblDeltaLabel, LV_ALIGN_TOP_LEFT, 0, 18);
 
     // ── Delta value (big, prominent) ──
     lblCellDelta = lv_label_create(card);
     lv_label_set_text(lblCellDelta, "-- mV");
     lv_obj_set_style_text_color(lblCellDelta, COLOR_GREEN, 0);
     lv_obj_set_style_text_font(lblCellDelta, &lv_font_montserrat_20, 0);
-    lv_obj_align(lblCellDelta, LV_ALIGN_TOP_MID, 0, 24);
+    lv_obj_align(lblCellDelta, LV_ALIGN_TOP_MID, 0, 28);
 
     // ── Separator line ──
     lv_obj_t * line = lv_obj_create(card);
@@ -457,14 +485,15 @@ static lv_obj_t * createCellVoltageWidget(lv_obj_t * parent, int w, int h) {
     lv_obj_set_style_radius(line, 0, 0);
     lv_obj_set_style_pad_all(line, 0, 0);
     lv_obj_clear_flag(line, LV_OBJ_FLAG_SCROLLABLE);
-    lv_obj_align(line, LV_ALIGN_TOP_MID, 0, 50);
+    lv_obj_align(line, LV_ALIGN_TOP_MID, 0, 54);
 
-    // ── Bottom row: Min and Max side by side ──
+    // ── Bottom row: Min and Max side by side (right below separator) ──
     int halfW = (innerW - 4) / 2; // 4px gap between
+    int boxH = h - 64; // remaining height after title+delta+line
 
     // --- Min V box (left) ---
     lv_obj_t * boxMin = lv_obj_create(card);
-    lv_obj_set_size(boxMin, halfW, 56);
+    lv_obj_set_size(boxMin, halfW, boxH);
     lv_obj_align(boxMin, LV_ALIGN_BOTTOM_LEFT, 0, 0);
     lv_obj_set_style_bg_color(boxMin, lv_color_hex(0x161B22), 0);
     lv_obj_set_style_bg_opa(boxMin, LV_OPA_COVER, 0);
@@ -489,7 +518,7 @@ static lv_obj_t * createCellVoltageWidget(lv_obj_t * parent, int w, int h) {
 
     // --- Max V box (right) ---
     lv_obj_t * boxMax = lv_obj_create(card);
-    lv_obj_set_size(boxMax, halfW, 56);
+    lv_obj_set_size(boxMax, halfW, boxH);
     lv_obj_align(boxMax, LV_ALIGN_BOTTOM_RIGHT, 0, 0);
     lv_obj_set_style_bg_color(boxMax, lv_color_hex(0x161B22), 0);
     lv_obj_set_style_bg_opa(boxMax, LV_OPA_COVER, 0);
@@ -638,6 +667,22 @@ static void obd_gui_update_timer_cb(lv_timer_t * timer) {
                 char buf[16];
                 snprintf(buf, sizeof(buf), "%.1f", obdExtTemp);
                 lv_label_set_text(lblValue, buf);
+            }
+        }
+
+        // ── Page 2: HV Battery Voltage ──
+        if (widgetCards[1][0] != NULL && obdHVBatVoltage > 0) {
+            lv_obj_t * lblValue = lv_obj_get_child(widgetCards[1][0], 1);
+            lv_obj_t * bar = lv_obj_get_child(widgetCards[1][0], 3);
+            if (lblValue) {
+                char buf[16];
+                snprintf(buf, sizeof(buf), "%.0f", obdHVBatVoltage);
+                lv_label_set_text(lblValue, buf);
+            }
+            if (bar) {
+                int pct = (int)((obdHVBatVoltage - 300) / (400 - 300) * 100);
+                if (pct < 0) pct = 0; if (pct > 100) pct = 100;
+                lv_bar_set_value(bar, pct, LV_ANIM_ON);
             }
         }
 

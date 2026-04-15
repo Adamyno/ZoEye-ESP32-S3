@@ -555,8 +555,15 @@ void ObdManager::processEvcStep() {
         }
         case EVC_QUERY_HV_VOLT: {
           // Response: 62 32 03 XX XX -> raw * 0.5 = V
-          // Not stored as standalone var on S3 yet, but cell voltage card uses obdCellVoltageMax * 96
-          // We could add obdHVBatVoltage here if needed
+          if (r.indexOf("623203") >= 0 || r.indexOf("62 32 03") >= 0) {
+            int raw = parseUDSHex(r, "623203", 2);
+            if (raw >= 0 && xSemaphoreTake(obdDataMutex, portMAX_DELAY)) {
+                obdHVBatVoltage = raw * 0.5f;
+                Serial.printf("[ZOE] HV Voltage = %.1f V\n", obdHVBatVoltage);
+                lastOBDRxTime = millis();
+                xSemaphoreGive(obdDataMutex);
+            }
+          }
           break;
         }
         default: break;

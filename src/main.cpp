@@ -53,8 +53,8 @@ void obdTask(void *pvParameters) {
                 }
             }
         } else if (canReady) {
-            // Both BT and CAN ready - normal polling
-            // Cycle: active state machines get priority
+            // Both BT and CAN ready - page-aware polling
+            // Only poll ECUs needed for the currently visible page
             if (hvacState != HVAC_IDLE) {
                 ObdManager::processHvacStep();
             } else if (evcState != EVC_IDLE) {
@@ -62,12 +62,27 @@ void obdTask(void *pvParameters) {
             } else if (lbcState != LBC_IDLE) {
                 ObdManager::processLbcStep();
             } else {
-                // All idle — start next phase
+                // All idle — start next phase based on current page
+                int page = UiDashboard::getCurrentPage();
                 static int pollPhase = 0;
-                switch (pollPhase % 3) {
-                    case 0: hvacState = HVAC_SWITCH_SH; break;
-                    case 1: evcState = EVC_SWITCH_SH;   break;
-                    case 2: lbcState = LBC_SWITCH_SH;   break;
+                
+                if (page == 0) {
+                    // Page 0: SOC(EVC), CellV(LBC), Cabin+Ext(HVAC)
+                    switch (pollPhase % 3) {
+                        case 0: hvacState = HVAC_SWITCH_SH; break;
+                        case 1: evcState = EVC_SWITCH_SH;   break;
+                        case 2: lbcState = LBC_SWITCH_SH;   break;
+                    }
+                } else if (page == 1) {
+                    // Page 1: HV Battery(EVC) only
+                    evcState = EVC_SWITCH_SH;
+                } else {
+                    // Default: full cycle
+                    switch (pollPhase % 3) {
+                        case 0: hvacState = HVAC_SWITCH_SH; break;
+                        case 1: evcState = EVC_SWITCH_SH;   break;
+                        case 2: lbcState = LBC_SWITCH_SH;   break;
+                    }
                 }
                 pollPhase++;
             }
