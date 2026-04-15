@@ -90,14 +90,17 @@ void obdTask(void *pvParameters) {
 #define TOUCH_DOT_LIFETIME_MS 2000
 
 #if TOUCH_DEBUG_ENABLED
-static void touchDebugCb(lv_event_t *e) {
-  lv_indev_t *indev = lv_indev_active();
+static void touchDebugIndevCb(lv_event_t *e) {
+  lv_indev_t *indev = (lv_indev_t *)lv_event_get_target(e);
   if (indev == NULL) return;
   
   lv_point_t point;
   lv_indev_get_point(indev, &point);
   
-  // Create a small red circle at the touch location
+  // Skip (0,0) which is the default/invalid position
+  if (point.x == 0 && point.y == 0) return;
+  
+  // Create a small red circle at the touch location on layer_top (above everything)
   lv_obj_t *dot = lv_obj_create(lv_layer_top());
   lv_obj_set_size(dot, TOUCH_DOT_SIZE, TOUCH_DOT_SIZE);
   lv_obj_set_pos(dot, point.x - TOUCH_DOT_SIZE / 2, point.y - TOUCH_DOT_SIZE / 2);
@@ -105,6 +108,7 @@ static void touchDebugCb(lv_event_t *e) {
   lv_obj_set_style_bg_color(dot, lv_color_hex(0xFF0000), 0);
   lv_obj_set_style_bg_opa(dot, LV_OPA_80, 0);
   lv_obj_set_style_border_width(dot, 0, 0);
+  lv_obj_set_style_pad_all(dot, 0, 0);
   lv_obj_clear_flag(dot, (lv_obj_flag_t)(LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_SCROLLABLE));
   lv_obj_set_scrollbar_mode(dot, LV_SCROLLBAR_MODE_OFF);
   
@@ -113,16 +117,15 @@ static void touchDebugCb(lv_event_t *e) {
 }
 
 static void setupTouchDebug(void) {
-  // Add a pressed event to the active screen's layer_top so it catches all presses
-  lv_obj_add_flag(lv_layer_top(), LV_OBJ_FLAG_CLICKABLE);
-  lv_obj_clear_flag(lv_layer_top(), LV_OBJ_FLAG_SCROLLABLE);
-  // Set click through so touches also reach widgets below
-  lv_obj_add_flag(lv_layer_top(), LV_OBJ_FLAG_EVENT_BUBBLE);
-  lv_obj_set_style_bg_opa(lv_layer_top(), LV_OPA_TRANSP, 0);
-  lv_obj_add_event_cb(lv_layer_top(), touchDebugCb, LV_EVENT_PRESSED, NULL);
-  Serial.println("[SYS] Touch debug overlay ENABLED");
+  // Attach to the input device directly - this does NOT block touches to widgets
+  lv_indev_t *indev = lv_indev_get_next(NULL);
+  if (indev) {
+    lv_indev_add_event_cb(indev, touchDebugIndevCb, LV_EVENT_PRESSED, NULL);
+    Serial.println("[SYS] Touch debug overlay ENABLED (indev callback)");
+  }
 }
 #endif
+
 
 // Called when boot animation finishes
 static void onBootComplete(void) {
