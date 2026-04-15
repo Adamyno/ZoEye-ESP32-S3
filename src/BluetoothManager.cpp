@@ -278,3 +278,10 @@ void BluetoothManager::startReconnectTask(String mac) {
   );
   Serial.println("[BLE] Reconnect task created on Core 0");
 }
+
+int BluetoothManager::getConnectedRSSI() {
+  if (pClient != nullptr && pClient->isConnected()) {
+    return pClient->getRssi();
+  }
+  return -99;
+}

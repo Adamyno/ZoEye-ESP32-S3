@@ -658,13 +658,16 @@ static void showStatusView(void) {
     xSemaphoreGive(obdDataMutex);
   }
 
+  int yOffset = 4;
+  
   // Status label
   lv_obj_t *lblStatus = lv_label_create(rightPanel);
   lv_label_set_text(lblStatus, connected ? "Connected" : "Not connected");
   lv_obj_set_style_text_color(lblStatus, connected ? COLOR_GREEN : COLOR_RED,
                               0);
   lv_obj_set_style_text_font(lblStatus, &lv_font_montserrat_20, 0);
-  lv_obj_align(lblStatus, LV_ALIGN_TOP_LEFT, 0, 4);
+  lv_obj_align(lblStatus, LV_ALIGN_TOP_LEFT, 0, yOffset);
+  yOffset += 28;
 
   if (curName.length() > 0) {
     lv_obj_t *lblDev = lv_label_create(rightPanel);
@@ -672,8 +675,26 @@ static void showStatusView(void) {
     snprintf(buf, sizeof(buf), "%s\n%s", curName.c_str(), curMAC.c_str());
     lv_label_set_text(lblDev, buf);
     lv_obj_set_style_text_color(lblDev, COLOR_TEXT_SECONDARY, 0);
-    lv_obj_set_style_text_font(lblDev, &lv_font_montserrat_12, 0);
-    lv_obj_align(lblDev, LV_ALIGN_TOP_LEFT, 0, 30);
+    lv_obj_set_style_text_font(lblDev, &lv_font_montserrat_16, 0);
+    lv_obj_align(lblDev, LV_ALIGN_TOP_LEFT, 0, yOffset);
+    yOffset += 44; // 2 lines of text
+    
+    if (connected) {
+      int rssi = BluetoothManager::getConnectedRSSI();
+      drawSignalBars(rightPanel, rssi, 0, yOffset);
+      
+      lv_obj_t *lblRssi = lv_label_create(rightPanel);
+      char rssiBuf[32];
+      snprintf(rssiBuf, sizeof(rssiBuf), "%d dBm", rssi);
+      lv_label_set_text(lblRssi, rssiBuf);
+      lv_obj_set_style_text_color(lblRssi, rssiColor(rssi), 0);
+      lv_obj_set_style_text_font(lblRssi, &lv_font_montserrat_16, 0);
+      lv_obj_align(lblRssi, LV_ALIGN_TOP_LEFT, 30, yOffset + 2);
+      
+      yOffset += 28;
+    }
+  } else {
+    yOffset += 10;
   }
 
   // Save config toggle
@@ -687,12 +708,12 @@ static void showStatusView(void) {
   lv_obj_t *lblSave = lv_label_create(rightPanel);
   lv_label_set_text(lblSave, "Auto-reconnect:");
   lv_obj_set_style_text_color(lblSave, COLOR_TEXT_PRIMARY, 0);
-  lv_obj_set_style_text_font(lblSave, &lv_font_montserrat_12, 0);
-  lv_obj_align(lblSave, LV_ALIGN_TOP_LEFT, 0, 66);
+  lv_obj_set_style_text_font(lblSave, &lv_font_montserrat_16, 0);
+  lv_obj_align(lblSave, LV_ALIGN_TOP_LEFT, 0, yOffset + 4);
 
   lv_obj_t *sw = lv_switch_create(rightPanel);
   lv_obj_set_size(sw, 44, 22);
-  lv_obj_align(sw, LV_ALIGN_TOP_LEFT, 130, 64);
+  lv_obj_align(sw, LV_ALIGN_TOP_LEFT, 150, yOffset + 2);
   if (hasSaved)
     lv_obj_add_state(sw, LV_STATE_CHECKED);
   lv_obj_set_style_bg_color(sw, COLOR_WIDGET_BORDER, LV_PART_MAIN);

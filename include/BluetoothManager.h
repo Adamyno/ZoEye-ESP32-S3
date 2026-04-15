@@ -8,4 +8,5 @@ public:
     static bool connectByMAC(String mac);
     static void startReconnectTask(String mac); // Non-blocking reconnect via FreeRTOS task
     static void disconnect();
+    static int getConnectedRSSI();
 };
