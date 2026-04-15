@@ -4,6 +4,11 @@
 #include "obd_globals.h"
 #include "ui_settings.h"
 
+// ─── Cell Voltage widget label pointers ──────────────────
+static lv_obj_t * lblCellDelta  = NULL;
+static lv_obj_t * lblCellMin    = NULL;
+static lv_obj_t * lblCellMax    = NULL;
+
 // ─── Internal state ───────────────────────────────────────
 static lv_obj_t * topBar       = NULL;
 static lv_obj_t * lblTitle     = NULL;
@@ -25,6 +30,7 @@ static void createTopBar(lv_obj_t * parent);
 static void createTileview(lv_obj_t * parent);
 static void createWidgetSlots(lv_obj_t * tile, int pageIdx);
 static void createDemoWidgets(lv_obj_t * tile, int pageIdx);
+static lv_obj_t * createCellVoltageWidget(lv_obj_t * parent, int w, int h);
 static lv_obj_t * createEmptySlot(lv_obj_t * parent, int w, int h);
 static lv_obj_t * createFilledWidget(lv_obj_t * parent, int w, int h,
                         const char * name, const char * value, const char * unit,
@@ -235,21 +241,28 @@ static void createDemoWidgets(lv_obj_t * tile, int pageIdx) {
     };
 
     DemoData demos[4] = {
-        { "SOC",       "78",    "%",   COLOR_GREEN,  78 },
-        { "HV Battery", "356",  "V",   COLOR_ACCENT, 85 },
-        { "Cabin",     "22.3",  "\xC2\xB0" "C", COLOR_YELLOW, 45 },
-        { "Ext Temp",  "18.1",  "\xC2\xB0" "C", COLOR_CYAN,   35 },
+        { "SOC",       "--",    "%",   COLOR_GREEN,  0 },
+        { NULL, NULL, NULL, {}, 0 },  // Slot 1: Cell Voltage widget (custom)
+        { "Cabin",     "--",    "\xC2\xB0" "C", COLOR_YELLOW, 0 },
+        { "Ext Temp",  "--",    "\xC2\xB0" "C", COLOR_CYAN,   0 },
     };
 
     for (int i = 0; i < WIDGET_COUNT; i++) {
         int x = WIDGET_MARGIN + i * (widgetW + WIDGET_GAP);
         int y = WIDGET_MARGIN;
 
-        lv_obj_t * w = createFilledWidget(tile, widgetW, widgetH,
-            demos[i].name, demos[i].value, demos[i].unit,
-            demos[i].color, demos[i].barPct);
-        lv_obj_set_pos(w, x, y);
-        widgetCards[pageIdx][i] = w;
+        if (i == 1) {
+            // Custom cell voltage widget
+            lv_obj_t * w = createCellVoltageWidget(tile, widgetW, widgetH);
+            lv_obj_set_pos(w, x, y);
+            widgetCards[pageIdx][i] = w;
+        } else {
+            lv_obj_t * w = createFilledWidget(tile, widgetW, widgetH,
+                demos[i].name, demos[i].value, demos[i].unit,
+                demos[i].color, demos[i].barPct);
+            lv_obj_set_pos(w, x, y);
+            widgetCards[pageIdx][i] = w;
+        }
     }
 }
 
@@ -393,6 +406,116 @@ static lv_obj_t * createFilledWidget(lv_obj_t * parent, int w, int h,
 }
 
 // ═══════════════════════════════════════════════════════════
+//  Cell Voltage Widget (Delta + Min/Max)
+// ═══════════════════════════════════════════════════════════
+
+static lv_obj_t * createCellVoltageWidget(lv_obj_t * parent, int w, int h) {
+    // ── Card container ──
+    lv_obj_t * card = lv_obj_create(parent);
+    lv_obj_set_size(card, w, h);
+    lv_obj_set_style_bg_color(card, COLOR_WIDGET_BG, 0);
+    lv_obj_set_style_bg_opa(card, LV_OPA_COVER, 0);
+    lv_obj_set_style_border_color(card, COLOR_WIDGET_BORDER, 0);
+    lv_obj_set_style_border_width(card, 1, 0);
+    lv_obj_set_style_radius(card, 8, 0);
+    lv_obj_set_style_pad_top(card, 4, 0);
+    lv_obj_set_style_pad_bottom(card, 4, 0);
+    lv_obj_set_style_pad_left(card, 6, 0);
+    lv_obj_set_style_pad_right(card, 6, 0);
+    lv_obj_set_scrollbar_mode(card, LV_SCROLLBAR_MODE_OFF);
+    lv_obj_clear_flag(card, LV_OBJ_FLAG_SCROLLABLE);
+
+    int innerW = w - 14; // 6+6 padding + 2 border
+
+    // ── Title "Cell Voltages" ──
+    lv_obj_t * lblTitle = lv_label_create(card);
+    lv_label_set_text(lblTitle, "Cell Voltages");
+    lv_obj_set_style_text_color(lblTitle, COLOR_TEXT_SECONDARY, 0);
+    lv_obj_set_style_text_font(lblTitle, &lv_font_montserrat_10, 0);
+    lv_obj_align(lblTitle, LV_ALIGN_TOP_MID, 0, 0);
+
+    // ── "\xCE\x94V:" label ──
+    lv_obj_t * lblDeltaLabel = lv_label_create(card);
+    lv_label_set_text(lblDeltaLabel, "\xCE\x94V:");
+    lv_obj_set_style_text_color(lblDeltaLabel, COLOR_TEXT_SECONDARY, 0);
+    lv_obj_set_style_text_font(lblDeltaLabel, &lv_font_montserrat_10, 0);
+    lv_obj_align(lblDeltaLabel, LV_ALIGN_TOP_LEFT, 0, 14);
+
+    // ── Delta value (big, prominent) ──
+    lblCellDelta = lv_label_create(card);
+    lv_label_set_text(lblCellDelta, "-- mV");
+    lv_obj_set_style_text_color(lblCellDelta, COLOR_GREEN, 0);
+    lv_obj_set_style_text_font(lblCellDelta, &lv_font_montserrat_20, 0);
+    lv_obj_align(lblCellDelta, LV_ALIGN_TOP_MID, 0, 24);
+
+    // ── Separator line ──
+    lv_obj_t * line = lv_obj_create(card);
+    lv_obj_set_size(line, innerW, 1);
+    lv_obj_set_style_bg_color(line, COLOR_WIDGET_BORDER, 0);
+    lv_obj_set_style_bg_opa(line, LV_OPA_COVER, 0);
+    lv_obj_set_style_border_width(line, 0, 0);
+    lv_obj_set_style_radius(line, 0, 0);
+    lv_obj_set_style_pad_all(line, 0, 0);
+    lv_obj_clear_flag(line, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_align(line, LV_ALIGN_TOP_MID, 0, 50);
+
+    // ── Bottom row: Min and Max side by side ──
+    int halfW = (innerW - 4) / 2; // 4px gap between
+
+    // --- Min V box (left) ---
+    lv_obj_t * boxMin = lv_obj_create(card);
+    lv_obj_set_size(boxMin, halfW, 56);
+    lv_obj_align(boxMin, LV_ALIGN_BOTTOM_LEFT, 0, 0);
+    lv_obj_set_style_bg_color(boxMin, lv_color_hex(0x161B22), 0);
+    lv_obj_set_style_bg_opa(boxMin, LV_OPA_COVER, 0);
+    lv_obj_set_style_border_color(boxMin, COLOR_WIDGET_BORDER, 0);
+    lv_obj_set_style_border_width(boxMin, 1, 0);
+    lv_obj_set_style_radius(boxMin, 6, 0);
+    lv_obj_set_style_pad_all(boxMin, 2, 0);
+    lv_obj_set_scrollbar_mode(boxMin, LV_SCROLLBAR_MODE_OFF);
+    lv_obj_clear_flag(boxMin, LV_OBJ_FLAG_SCROLLABLE);
+
+    lv_obj_t * lblMinLabel = lv_label_create(boxMin);
+    lv_label_set_text(lblMinLabel, "Min V");
+    lv_obj_set_style_text_color(lblMinLabel, COLOR_TEXT_SECONDARY, 0);
+    lv_obj_set_style_text_font(lblMinLabel, &lv_font_montserrat_10, 0);
+    lv_obj_align(lblMinLabel, LV_ALIGN_TOP_MID, 0, 0);
+
+    lblCellMin = lv_label_create(boxMin);
+    lv_label_set_text(lblCellMin, "-.--");
+    lv_obj_set_style_text_color(lblCellMin, COLOR_CYAN, 0);
+    lv_obj_set_style_text_font(lblCellMin, &lv_font_montserrat_16, 0);
+    lv_obj_align(lblCellMin, LV_ALIGN_BOTTOM_MID, 0, 0);
+
+    // --- Max V box (right) ---
+    lv_obj_t * boxMax = lv_obj_create(card);
+    lv_obj_set_size(boxMax, halfW, 56);
+    lv_obj_align(boxMax, LV_ALIGN_BOTTOM_RIGHT, 0, 0);
+    lv_obj_set_style_bg_color(boxMax, lv_color_hex(0x161B22), 0);
+    lv_obj_set_style_bg_opa(boxMax, LV_OPA_COVER, 0);
+    lv_obj_set_style_border_color(boxMax, COLOR_WIDGET_BORDER, 0);
+    lv_obj_set_style_border_width(boxMax, 1, 0);
+    lv_obj_set_style_radius(boxMax, 6, 0);
+    lv_obj_set_style_pad_all(boxMax, 2, 0);
+    lv_obj_set_scrollbar_mode(boxMax, LV_SCROLLBAR_MODE_OFF);
+    lv_obj_clear_flag(boxMax, LV_OBJ_FLAG_SCROLLABLE);
+
+    lv_obj_t * lblMaxLabel = lv_label_create(boxMax);
+    lv_label_set_text(lblMaxLabel, "Max V");
+    lv_obj_set_style_text_color(lblMaxLabel, COLOR_TEXT_SECONDARY, 0);
+    lv_obj_set_style_text_font(lblMaxLabel, &lv_font_montserrat_10, 0);
+    lv_obj_align(lblMaxLabel, LV_ALIGN_TOP_MID, 0, 0);
+
+    lblCellMax = lv_label_create(boxMax);
+    lv_label_set_text(lblCellMax, "-.--");
+    lv_obj_set_style_text_color(lblCellMax, COLOR_ACCENT, 0);
+    lv_obj_set_style_text_font(lblCellMax, &lv_font_montserrat_16, 0);
+    lv_obj_align(lblCellMax, LV_ALIGN_BOTTOM_MID, 0, 0);
+
+    return card;
+}
+
+// ═══════════════════════════════════════════════════════════
 //  Page Dots (in top bar)
 // ═══════════════════════════════════════════════════════════
 
@@ -473,17 +596,30 @@ static void obd_gui_update_timer_cb(lv_timer_t * timer) {
             }
         }
         
-        if (widgetCards[0][1] != NULL && obdCellVoltageMax > 0) {
-            lv_obj_t * lblValue = lv_obj_get_child(widgetCards[0][1], 1);
-            lv_obj_t * bar = lv_obj_get_child(widgetCards[0][1], 3);
-            if (lblValue && bar) {
+        if (widgetCards[0][1] != NULL && obdCellVoltageMax > 0 && obdCellVoltageMin > 0) {
+            // Cell Voltage widget update via dedicated labels
+            if (lblCellDelta) {
+                float deltaV = (obdCellVoltageMax - obdCellVoltageMin) * 1000.0f; // mV
                 char buf[16];
-                float volts = obdCellVoltageMax * 96.0f;
-                snprintf(buf, sizeof(buf), "%.0f", volts);
-                lv_label_set_text(lblValue, buf);
-                int pct = (volts - 320) / (400 - 320) * 100;
-                if (pct < 0) pct = 0; if (pct > 100) pct = 100;
-                lv_bar_set_value(bar, pct, LV_ANIM_ON);
+                snprintf(buf, sizeof(buf), "%.0f mV", deltaV);
+                lv_label_set_text(lblCellDelta, buf);
+                // Color: green < 20mV, yellow < 50mV, red >= 50mV
+                if (deltaV < 20.0f)
+                    lv_obj_set_style_text_color(lblCellDelta, COLOR_GREEN, 0);
+                else if (deltaV < 50.0f)
+                    lv_obj_set_style_text_color(lblCellDelta, COLOR_YELLOW, 0);
+                else
+                    lv_obj_set_style_text_color(lblCellDelta, COLOR_RED, 0);
+            }
+            if (lblCellMin) {
+                char buf[16];
+                snprintf(buf, sizeof(buf), "%.2f", obdCellVoltageMin);
+                lv_label_set_text(lblCellMin, buf);
+            }
+            if (lblCellMax) {
+                char buf[16];
+                snprintf(buf, sizeof(buf), "%.2f", obdCellVoltageMax);
+                lv_label_set_text(lblCellMax, buf);
             }
         }
         
