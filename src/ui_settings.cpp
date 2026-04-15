@@ -381,7 +381,7 @@ static void showInfoMenu(void) {
   lv_obj_t *lblTitle = lv_label_create(bar);
   lv_label_set_text(lblTitle, "System Info");
   lv_obj_set_style_text_color(lblTitle, COLOR_CYAN, 0);
-  lv_obj_set_style_text_font(lblTitle, &lv_font_montserrat_18, 0);
+  lv_obj_set_style_text_font(lblTitle, &lv_font_montserrat_20, 0);
   lv_obj_align(lblTitle, LV_ALIGN_CENTER, 0, 0);
 
   // Content
@@ -697,7 +697,7 @@ static void showStatusView(void) {
     lv_obj_add_state(sw, LV_STATE_CHECKED);
   lv_obj_set_style_bg_color(sw, COLOR_WIDGET_BORDER, LV_PART_MAIN);
   lv_obj_set_style_bg_color(sw, COLOR_GREEN,
-                            LV_PART_INDICATOR | LV_STATE_CHECKED);
+                            (lv_style_selector_t)LV_PART_INDICATOR | (lv_style_selector_t)LV_STATE_CHECKED);
   lv_obj_add_event_cb(sw, saveToggleCb, LV_EVENT_VALUE_CHANGED, NULL);
 
   // Delete saved config button
