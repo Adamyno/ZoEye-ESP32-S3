@@ -34,8 +34,10 @@ unsigned long pollCycleStartTime = 0;
 
 HvacPollState hvacState = HVAC_IDLE;
 LbcPollState lbcState = LBC_IDLE;
+EvcPollState evcState = EVC_IDLE;
 unsigned long hvacCmdSentTime = 0;
 unsigned long lbcCmdSentTime = 0;
+unsigned long evcCmdSentTime = 0;
 
 const unsigned long HVAC_AT_TIMEOUT = 1000;
 const unsigned long HVAC_ISOTP_TIMEOUT = 5000;

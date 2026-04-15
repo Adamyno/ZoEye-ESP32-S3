@@ -494,3 +494,98 @@ void ObdManager::processLbcStep() {
       break;
   }
 }
+
+// ═══════════════════════════════════════════════════════════
+//  EVC (Electric Vehicle Controller) - SOC, HV Voltage, Battery Temp
+//  Non-blocking state machine, same pattern as HVAC/LBC
+// ═══════════════════════════════════════════════════════════
+
+void ObdManager::processEvcStep() {
+  if (evcState == EVC_IDLE) {
+    evcState = EVC_SWITCH_SH;
+    if (xSemaphoreTake(obdDataMutex, portMAX_DELAY)) { lastOBDValue = ""; xSemaphoreGive(obdDataMutex); }
+  }
+
+  if (evcState == EVC_DONE) {
+    obdCurrentECU = 0;
+    evcState = EVC_IDLE;
+    lastOBDRxTime = millis();
+    return;
+  }
+
+  unsigned long now = millis();
+  unsigned long timeout = (evcState >= EVC_QUERY_SOC && evcState <= EVC_QUERY_HV_VOLT) ? HVAC_ISOTP_TIMEOUT : HVAC_AT_TIMEOUT;
+  if (evcState == EVC_SESSION) timeout = 2000;
+
+  if (evcCmdSentTime > 0) {
+    String r = "";
+    if (xSemaphoreTake(obdDataMutex, portMAX_DELAY)) {
+        if (lastOBDValue.length() > 0) { r = lastOBDValue; lastOBDValue = ""; }
+        xSemaphoreGive(obdDataMutex);
+    }
+
+    if (r.length() > 0) {
+      evcCmdSentTime = 0;
+      switch (evcState) {
+        case EVC_QUERY_SOC: {
+          // Response: 62 20 02 XX XX -> raw * 0.02 = SOC%
+          if (r.indexOf("622002") >= 0 || r.indexOf("62 20 02") >= 0) {
+            int raw = parseUDSHex(r, "622002", 2);
+            if (raw >= 0 && xSemaphoreTake(obdDataMutex, portMAX_DELAY)) {
+                obdSOC = raw * 0.02f;
+                Serial.printf("[ZOE] SOC = %.1f%%\n", obdSOC);
+                lastOBDRxTime = millis();
+                xSemaphoreGive(obdDataMutex);
+            }
+          }
+          break;
+        }
+        case EVC_QUERY_BAT_TEMP: {
+          // Response: 62 20 01 XX -> raw - 40 = temp °C
+          if (r.indexOf("622001") >= 0 || r.indexOf("62 20 01") >= 0) {
+            int raw = parseUDSHex(r, "622001", 1);
+            if (raw >= 0 && xSemaphoreTake(obdDataMutex, portMAX_DELAY)) {
+                obdHVBatTemp = raw - 40;
+                Serial.printf("[ZOE] Bat Temp = %.0f°C\n", obdHVBatTemp);
+                lastOBDRxTime = millis();
+                xSemaphoreGive(obdDataMutex);
+            }
+          }
+          break;
+        }
+        case EVC_QUERY_HV_VOLT: {
+          // Response: 62 32 03 XX XX -> raw * 0.5 = V
+          // Not stored as standalone var on S3 yet, but cell voltage card uses obdCellVoltageMax * 96
+          // We could add obdHVBatVoltage here if needed
+          break;
+        }
+        default: break;
+      }
+      evcState = (EvcPollState)(evcState + 1);
+      return;
+    } else if (now - evcCmdSentTime >= timeout) {
+      Serial.printf("[OBD] EVC state %d timeout, advancing\n", evcState);
+      evcCmdSentTime = 0;
+      evcState = (EvcPollState)(evcState + 1);
+      return;
+    }
+    return;
+  }
+
+  if (xSemaphoreTake(obdDataMutex, portMAX_DELAY)) { lastOBDValue = ""; xSemaphoreGive(obdDataMutex); }
+  evcCmdSentTime = now;
+
+  switch (evcState) {
+    case EVC_SWITCH_SH:      sendCommand("ATSH7E4");      obdCurrentECU = 0; break;
+    case EVC_SWITCH_CRA:     sendCommand("ATCRA7EC");     break;
+    case EVC_SWITCH_FCSH:    sendCommand("ATFCSH7E4");    break;
+    case EVC_SESSION:        sendCommand("10C0");         break;
+    case EVC_QUERY_SOC:      sendCommand("222002");       break;
+    case EVC_QUERY_BAT_TEMP: sendCommand("222001");       break;
+    case EVC_QUERY_HV_VOLT:  sendCommand("223203");       break;
+    default:
+      evcState = EVC_DONE;
+      evcCmdSentTime = 0;
+      break;
+  }
+}

@@ -50,6 +50,19 @@ enum LbcPollState {
   LBC_DONE
 };
 
+// EVC Polling State Machine (non-blocking) - SOC, HV Voltage, Battery Temp
+enum EvcPollState {
+  EVC_IDLE = 0,
+  EVC_SWITCH_SH,
+  EVC_SWITCH_CRA,
+  EVC_SWITCH_FCSH,
+  EVC_SESSION,
+  EVC_QUERY_SOC,      // 222002
+  EVC_QUERY_BAT_TEMP, // 222001
+  EVC_QUERY_HV_VOLT,  // 223203
+  EVC_DONE
+};
+
 // ─── BLE MACROSS ───────────────────────────────────────
 #define MAX_BLE_DEVICES 10
 
@@ -100,8 +113,10 @@ extern unsigned long pollCycleStartTime;
 // State machines
 extern HvacPollState hvacState;
 extern LbcPollState lbcState;
+extern EvcPollState evcState;
 extern unsigned long hvacCmdSentTime;
 extern unsigned long lbcCmdSentTime;
+extern unsigned long evcCmdSentTime;
 
 extern const unsigned long HVAC_AT_TIMEOUT;
 extern const unsigned long HVAC_ISOTP_TIMEOUT;

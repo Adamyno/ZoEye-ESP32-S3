@@ -10,6 +10,7 @@ public:
     static bool initOBD();
     static void processHvacStep();
     static void processLbcStep();
+    static void processEvcStep();
     
     // Raw parsing helpers
     static int parseUDSHex(const String &resp, const char *expectedPrefix, int byteCount);

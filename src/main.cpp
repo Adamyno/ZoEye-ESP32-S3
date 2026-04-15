@@ -54,14 +54,22 @@ void obdTask(void *pvParameters) {
             }
         } else if (canReady) {
             // Both BT and CAN ready - normal polling
-            if (hvacState == HVAC_IDLE && lbcState == LBC_IDLE) {
-                hvacState = HVAC_SWITCH_SH; 
-            }
-            
+            // Cycle: active state machines get priority
             if (hvacState != HVAC_IDLE) {
                 ObdManager::processHvacStep();
+            } else if (evcState != EVC_IDLE) {
+                ObdManager::processEvcStep();
             } else if (lbcState != LBC_IDLE) {
                 ObdManager::processLbcStep();
+            } else {
+                // All idle — start next phase
+                static int pollPhase = 0;
+                switch (pollPhase % 3) {
+                    case 0: hvacState = HVAC_SWITCH_SH; break;
+                    case 1: evcState = EVC_SWITCH_SH;   break;
+                    case 2: lbcState = LBC_SWITCH_SH;   break;
+                }
+                pollPhase++;
             }
         }
     } else {
