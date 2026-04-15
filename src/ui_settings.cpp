@@ -863,12 +863,15 @@ static void connectBtnCb(lv_event_t *e) {
 
   String mac = "";
   String name = "";
+  uint8_t addrType = 0;
   if (xSemaphoreTake(obdDataMutex, pdMS_TO_TICKS(200)) == pdTRUE) {
     if (devIdx >= 0 && devIdx < btTotalDevices) {
       mac = btDevices[devIdx].address;
       name = btDevices[devIdx].name;
+      addrType = btDevices[devIdx].addrType;
       btTargetMAC = mac;
       btTargetName = name;
+      btTargetType = addrType;
     }
     xSemaphoreGive(obdDataMutex);
   }
@@ -879,6 +882,7 @@ static void connectBtnCb(lv_event_t *e) {
   preferences.begin("zoeyee", false);
   preferences.putString("bt_mac", mac);
   preferences.putString("bt_name", name);
+  preferences.putUChar("bt_type", addrType);
   preferences.end();
 
   // Update button UI
@@ -890,9 +894,9 @@ static void connectBtnCb(lv_event_t *e) {
   lv_obj_set_style_bg_color(btn, COLOR_WIDGET_BG, 0);
   lv_refr_now(NULL);
 
-  Serial.printf("[Settings] Connecting to %s [%s]\n", name.c_str(),
-                mac.c_str());
-  bool ok = BluetoothManager::connectByMAC(mac);
+  Serial.printf("[Settings] Connecting to %s [%s] type=%d\n", name.c_str(),
+                mac.c_str(), addrType);
+  bool ok = BluetoothManager::connectByMAC(mac, addrType);
 
   // Also check actual connection state (onConnect callback may have set it)
   if (!ok) {

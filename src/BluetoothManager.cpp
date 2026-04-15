@@ -82,6 +82,7 @@ void BluetoothManager::runBLEScan() {
             btDevices[i].name = device->haveName() ? String(device->getName().c_str()) : "(unknown)";
             btDevices[i].address = String(device->getAddress().toString().c_str());
             btDevices[i].rssi = device->getRSSI();
+            btDevices[i].addrType = device->getAddress().getType();
         }
     }
 
@@ -100,16 +101,17 @@ void BluetoothManager::runBLEScan() {
   pBLEScan->clearResults();
 }
 
-bool BluetoothManager::connectByMAC(String mac) {
+bool BluetoothManager::connectByMAC(String mac, uint8_t addrType) {
   if (bleConnecting) return false;
   
   if (xSemaphoreTake(obdDataMutex, portMAX_DELAY)) {
       bleConnecting = true;
       btTargetMAC = mac;
+      btTargetType = addrType;
       xSemaphoreGive(obdDataMutex);
   }
   
-  Serial.printf("[BLE] Auto-reconnect to [%s]\n", mac.c_str());
+  Serial.printf("[BLE] Connecting to [%s] addrType=%d\n", mac.c_str(), addrType);
 
   if (pClient != nullptr) {
     if (pClient->isConnected())
@@ -126,7 +128,7 @@ bool BluetoothManager::connectByMAC(String mac) {
   pClient->setConnectionParams(32, 80, 0, 500);
   pClient->setConnectTimeout(5000);
 
-  NimBLEAddress targetAddr(std::string(mac.c_str()), 0); // Assuming BLE_ADDR_PUBLIC
+  NimBLEAddress targetAddr(std::string(mac.c_str()), addrType);
   
   if (!pClient->connect(targetAddr)) {
     Serial.println("[BLE] Connection failed!");
@@ -252,21 +254,24 @@ void BluetoothManager::disconnect() {
 }
 
 static String _reconnectMAC;
+static uint8_t _reconnectAddrType = 0;
 
 static void btReconnectTaskFunc(void *pvParameters) {
   String mac = _reconnectMAC;
-  Serial.printf("[BLE] Reconnect task started for [%s]\n", mac.c_str());
-  bool result = BluetoothManager::connectByMAC(mac);
+  uint8_t atype = _reconnectAddrType;
+  Serial.printf("[BLE] Reconnect task started for [%s] type=%d\n", mac.c_str(), atype);
+  bool result = BluetoothManager::connectByMAC(mac, atype);
   Serial.printf("[BLE] Reconnect task finished, result=%d\n", result);
   btReconnectTaskHandle = nullptr;
   vTaskDelete(NULL);
 }
 
-void BluetoothManager::startReconnectTask(String mac) {
+void BluetoothManager::startReconnectTask(String mac, uint8_t addrType) {
   if (btReconnectTaskHandle != nullptr || bleConnecting) {
     return;
   }
   _reconnectMAC = mac;
+  _reconnectAddrType = addrType;
   xTaskCreatePinnedToCore(
     btReconnectTaskFunc,
     "bt_reconn",

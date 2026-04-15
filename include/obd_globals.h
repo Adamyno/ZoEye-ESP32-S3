@@ -57,6 +57,7 @@ struct CachedDevice {
   String name;
   String address;
   int rssi;
+  uint8_t addrType;  // 0=public, 1=random
   void* bleAddress; // Using void* to avoid NimBLE dependency leaking here if possible
 };
 

@@ -67,14 +67,16 @@ void obdTask(void *pvParameters) {
     } else {
         // BT not connected - try reconnect
         String mac = "";
+        uint8_t atype = 0;
         if (xSemaphoreTake(obdDataMutex, pdMS_TO_TICKS(100))) {
             mac = btTargetMAC;
+            atype = btTargetType;
             xSemaphoreGive(obdDataMutex);
         }
         if (mac.length() > 0 && !connecting && millis() - lastReconnect > RECONNECT_INTERVAL) {
             lastReconnect = millis();
             Serial.println("[OBD] Initiating async auto-reconnect...");
-            BluetoothManager::startReconnectTask(mac);
+            BluetoothManager::startReconnectTask(mac, atype);
         }
     }
     vTaskDelay(pdMS_TO_TICKS(50));
@@ -155,12 +157,14 @@ void setup()
   preferences.begin("zoeyee", true); // read-only
   String savedMAC = preferences.getString("bt_mac", "");
   String savedName = preferences.getString("bt_name", "");
+  uint8_t savedType = preferences.getUChar("bt_type", 0);
   preferences.end();
   if (savedMAC.length() > 0) {
-    Serial.printf("[SYS] Saved BT target: %s [%s]\n", savedName.c_str(), savedMAC.c_str());
+    Serial.printf("[SYS] Saved BT target: %s [%s] type=%d\n", savedName.c_str(), savedMAC.c_str(), savedType);
     if (xSemaphoreTake(obdDataMutex, portMAX_DELAY)) {
         btTargetMAC = savedMAC;
         btTargetName = savedName;
+        btTargetType = savedType;
         xSemaphoreGive(obdDataMutex);
     }
   }

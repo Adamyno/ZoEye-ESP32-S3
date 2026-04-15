@@ -5,8 +5,8 @@
 class BluetoothManager {
 public:
     static void runBLEScan();
-    static bool connectByMAC(String mac);
-    static void startReconnectTask(String mac); // Non-blocking reconnect via FreeRTOS task
+    static bool connectByMAC(String mac, uint8_t addrType = 0);
+    static void startReconnectTask(String mac, uint8_t addrType = 0);
     static void disconnect();
     static int getConnectedRSSI();
 };
