@@ -107,22 +107,22 @@ static void createTopBar(lv_obj_t * parent) {
     lblBt = lv_label_create(topBar);
     lv_label_set_text(lblBt, " ");
     lv_obj_set_style_text_color(lblBt, COLOR_TEXT_SECONDARY, 0);
-    lv_obj_set_style_text_font(lblBt, &lv_font_montserrat_14, 0);
+    lv_obj_set_style_text_font(lblBt, &lv_font_montserrat_16, 0);
     lv_obj_align(lblBt, LV_ALIGN_LEFT_MID, 0, 0);
 
     // WiFi icon
     lblWifi = lv_label_create(topBar);
     lv_label_set_text(lblWifi, " ");
     lv_obj_set_style_text_color(lblWifi, COLOR_TEXT_SECONDARY, 0);
-    lv_obj_set_style_text_font(lblWifi, &lv_font_montserrat_14, 0);
-    lv_obj_align(lblWifi, LV_ALIGN_LEFT_MID, 22, 0);
+    lv_obj_set_style_text_font(lblWifi, &lv_font_montserrat_16, 0);
+    lv_obj_align(lblWifi, LV_ALIGN_LEFT_MID, 24, 0);
 
     // CAN activity icon
     lblCan = lv_label_create(topBar);
     lv_label_set_text(lblCan, " ");
     lv_obj_set_style_text_color(lblCan, COLOR_TEXT_SECONDARY, 0);
-    lv_obj_set_style_text_font(lblCan, &lv_font_montserrat_14, 0);
-    lv_obj_align(lblCan, LV_ALIGN_LEFT_MID, 44, 0);
+    lv_obj_set_style_text_font(lblCan, &lv_font_montserrat_16, 0);
+    lv_obj_align(lblCan, LV_ALIGN_LEFT_MID, 48, 0);
 
     // ── Center: Title ──
     lblTitle = lv_label_create(topBar);

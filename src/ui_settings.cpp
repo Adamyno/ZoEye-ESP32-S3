@@ -659,6 +659,12 @@ static void showStatusView(void) {
     xSemaphoreGive(obdDataMutex);
   }
 
+  // Check saved config early (used by both delete button and auto-reconnect toggle)
+  preferences.begin("zoeyee", true);
+  String savedMAC = preferences.getString("bt_mac", "");
+  preferences.end();
+  bool hasSaved = (savedMAC.length() > 0);
+
   int yOffset = 4;
   
   // Status label
@@ -692,18 +698,28 @@ static void showStatusView(void) {
       lv_obj_set_style_text_font(lblRssi, &lv_font_montserrat_16, 0);
       lv_obj_align(lblRssi, LV_ALIGN_TOP_LEFT, 30, yOffset + 2);
       
+      // Delete button on the right third of the RSSI row
+      if (hasSaved) {
+        lv_obj_t *btnDel = lv_button_create(rightPanel);
+        lv_obj_set_size(btnDel, 120, 28);
+        lv_obj_align(btnDel, LV_ALIGN_TOP_RIGHT, 0, yOffset);
+        lv_obj_set_style_bg_color(btnDel, COLOR_RED, 0);
+        lv_obj_set_style_bg_opa(btnDel, LV_OPA_80, 0);
+        lv_obj_set_style_radius(btnDel, 6, 0);
+
+        lv_obj_t *lblDel = lv_label_create(btnDel);
+        lv_label_set_text(lblDel, LV_SYMBOL_TRASH " Delete");
+        lv_obj_set_style_text_color(lblDel, COLOR_TEXT_PRIMARY, 0);
+        lv_obj_set_style_text_font(lblDel, &lv_font_montserrat_14, 0);
+        lv_obj_center(lblDel);
+        lv_obj_add_event_cb(btnDel, deleteCfgBtnCb, LV_EVENT_CLICKED, NULL);
+      }
+      
       yOffset += 28;
     }
   } else {
     yOffset += 10;
   }
-
-  // Save config toggle
-  bool hasSaved = false;
-  preferences.begin("zoeyee", true);
-  String savedMAC = preferences.getString("bt_mac", "");
-  preferences.end();
-  hasSaved = (savedMAC.length() > 0);
 
   // Save toggle (switch)
   lv_obj_t *lblSave = lv_label_create(rightPanel);
@@ -722,8 +738,8 @@ static void showStatusView(void) {
                             (lv_style_selector_t)LV_PART_INDICATOR | (lv_style_selector_t)LV_STATE_CHECKED);
   lv_obj_add_event_cb(sw, saveToggleCb, LV_EVENT_VALUE_CHANGED, NULL);
 
-  // Delete saved config button
-  if (hasSaved) {
+  // If not connected but has saved config, show delete button at the bottom
+  if (!connected && hasSaved) {
     lv_obj_t *btnDel = lv_button_create(rightPanel);
     lv_obj_set_size(btnDel, 140, 32);
     lv_obj_align(btnDel, LV_ALIGN_BOTTOM_LEFT, 0, -4);
