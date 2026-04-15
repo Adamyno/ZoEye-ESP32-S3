@@ -464,7 +464,7 @@ static lv_obj_t * createCellVoltageWidget(lv_obj_t * parent, int w, int h) {
 
     // ── "dV:" label ──
     lv_obj_t * lblDeltaLabel = lv_label_create(card);
-    lv_label_set_text(lblDeltaLabel, "dV:");
+    lv_label_set_text(lblDeltaLabel, "Delta V:");
     lv_obj_set_style_text_color(lblDeltaLabel, COLOR_TEXT_SECONDARY, 0);
     lv_obj_set_style_text_font(lblDeltaLabel, &lv_font_montserrat_12, 0);
     lv_obj_align(lblDeltaLabel, LV_ALIGN_TOP_LEFT, 0, 18);
