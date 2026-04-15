@@ -455,26 +455,19 @@ static lv_obj_t * createCellVoltageWidget(lv_obj_t * parent, int w, int h) {
 
     int innerW = w - 14; // 6+6 padding + 2 border
 
-    // ── Title "Cell Voltages" ──
+    // ── Title "Delta V" ──
     lv_obj_t * lblTitle = lv_label_create(card);
-    lv_label_set_text(lblTitle, "Cell Voltages");
+    lv_label_set_text(lblTitle, "Delta V");
     lv_obj_set_style_text_color(lblTitle, COLOR_TEXT_SECONDARY, 0);
     lv_obj_set_style_text_font(lblTitle, &lv_font_montserrat_14, 0);
     lv_obj_align(lblTitle, LV_ALIGN_TOP_MID, 0, 0);
-
-    // ── "dV:" label ──
-    lv_obj_t * lblDeltaLabel = lv_label_create(card);
-    lv_label_set_text(lblDeltaLabel, "Delta V:");
-    lv_obj_set_style_text_color(lblDeltaLabel, COLOR_TEXT_SECONDARY, 0);
-    lv_obj_set_style_text_font(lblDeltaLabel, &lv_font_montserrat_12, 0);
-    lv_obj_align(lblDeltaLabel, LV_ALIGN_TOP_LEFT, 0, 18);
 
     // ── Delta value (big, prominent) ──
     lblCellDelta = lv_label_create(card);
     lv_label_set_text(lblCellDelta, "-- mV");
     lv_obj_set_style_text_color(lblCellDelta, COLOR_GREEN, 0);
-    lv_obj_set_style_text_font(lblCellDelta, &lv_font_montserrat_20, 0);
-    lv_obj_align(lblCellDelta, LV_ALIGN_TOP_MID, 0, 28);
+    lv_obj_set_style_text_font(lblCellDelta, &lv_font_montserrat_24, 0);
+    lv_obj_align(lblCellDelta, LV_ALIGN_TOP_MID, 0, 18);
 
     // ── Separator line ──
     lv_obj_t * line = lv_obj_create(card);
@@ -642,12 +635,12 @@ static void obd_gui_update_timer_cb(lv_timer_t * timer) {
             }
             if (lblCellMin) {
                 char buf[16];
-                snprintf(buf, sizeof(buf), "%.2f", obdCellVoltageMin);
+                snprintf(buf, sizeof(buf), "%.3f", obdCellVoltageMin);
                 lv_label_set_text(lblCellMin, buf);
             }
             if (lblCellMax) {
                 char buf[16];
-                snprintf(buf, sizeof(buf), "%.2f", obdCellVoltageMax);
+                snprintf(buf, sizeof(buf), "%.3f", obdCellVoltageMax);
                 lv_label_set_text(lblCellMax, buf);
             }
         }
