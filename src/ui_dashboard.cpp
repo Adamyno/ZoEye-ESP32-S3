@@ -1,6 +1,7 @@
 #include "ui_dashboard.h"
 #include "lvgl.h"
 #include <cstdio>
+#include <cmath>
 #include "obd_globals.h"
 #include "ui_settings.h"
 
@@ -8,6 +9,112 @@
 static lv_obj_t * lblCellDelta  = NULL;
 static lv_obj_t * lblCellMin    = NULL;
 static lv_obj_t * lblCellMax    = NULL;
+
+// ─── SOC Heart widget ─────────────────────────────────
+#define HEART_MAX_ROWS 120
+// Left half: LO=outer (most negative x), LI=inner (closest to center, ≤0)
+// Right half: RI=inner (closest to center, ≥0), RO=outer (most positive x)
+static int16_t heartLO[HEART_MAX_ROWS];
+static int16_t heartLI[HEART_MAX_ROWS];
+static int16_t heartRI[HEART_MAX_ROWS];
+static int16_t heartRO[HEART_MAX_ROWS];
+static int heartRows = 0;
+static bool heartReady = false;
+static lv_obj_t * socHeartObj  = NULL;
+static lv_obj_t * lblSocPct    = NULL;
+
+static void initHeartScanlines(int w, int h) {
+    heartRows = h;
+    if (heartRows > HEART_MAX_ROWS) heartRows = HEART_MAX_ROWS;
+    for (int i = 0; i < heartRows; i++) {
+        heartLO[i] =  9999; heartLI[i] = -9999;
+        heartRI[i] =  9999; heartRO[i] = -9999;
+    }
+    float scaleX = w / 34.0f;
+    float scaleY = h / 30.0f;
+    float offsetY = 13.0f;
+    for (int i = 0; i <= 3000; i++) {
+        float t = i * 6.28318530718f / 3000.0f;
+        float s = sinf(t);
+        float hx = 16.0f * s * s * s;
+        float hy = -(13.0f * cosf(t) - 5.0f * cosf(2*t) - 2.0f * cosf(3*t) - cosf(4*t));
+        int px = (int)(hx * scaleX);
+        int py = (int)((hy + offsetY) * scaleY);
+        if (py >= 0 && py < heartRows) {
+            if (px <= 0) {
+                // Left half
+                if (px < heartLO[py]) heartLO[py] = px;
+                if (px > heartLI[py]) heartLI[py] = px;
+            }
+            if (px >= 0) {
+                // Right half
+                if (px < heartRI[py]) heartRI[py] = px;
+                if (px > heartRO[py]) heartRO[py] = px;
+            }
+        }
+    }
+    heartReady = true;
+}
+
+static void socHeartDrawCb(lv_event_t * e) {
+    if (!heartReady) return;
+    lv_obj_t * obj = (lv_obj_t *)lv_event_get_target(e);
+    lv_layer_t * layer = lv_event_get_layer(e);
+    lv_area_t coords;
+    lv_obj_get_coords(obj, &coords);
+    int cx = (coords.x1 + coords.x2) / 2;
+    int top = coords.y1;
+
+    float soc = obdSOC;
+    if (soc < 0) soc = 0;
+    if (soc > 100) soc = 100;
+    int fillLine = heartRows - (int)(soc / 100.0f * heartRows);
+    if (fillLine < 0) fillLine = 0;
+    if (fillLine > heartRows) fillLine = heartRows;
+
+    lv_draw_rect_dsc_t rdsc;
+    lv_draw_rect_dsc_init(&rdsc);
+    rdsc.radius = 0;
+    rdsc.border_width = 0;
+    rdsc.bg_opa = LV_OPA_COVER;
+
+    for (int row = 0; row < heartRows; row++) {
+        bool hasLeft  = (heartLO[row] < 9999 && heartLI[row] > -9999);
+        bool hasRight = (heartRI[row] < 9999 && heartRO[row] > -9999);
+        if (!hasLeft && !hasRight) continue;
+
+        rdsc.bg_color = (row >= fillLine) ? lv_color_hex(0xF85149) : lv_color_hex(0x30363D);
+
+        // Check if the two halves merge (inner boundaries overlap → no cleft)
+        if (hasLeft && hasRight && heartLI[row] >= heartRI[row]) {
+            // Single continuous row
+            lv_area_t a;
+            a.x1 = cx + heartLO[row];
+            a.x2 = cx + heartRO[row];
+            a.y1 = top + row;
+            a.y2 = top + row;
+            lv_draw_rect(layer, &rdsc, &a);
+        } else {
+            // Cleft: draw left and right bumps separately
+            if (hasLeft) {
+                lv_area_t a;
+                a.x1 = cx + heartLO[row];
+                a.x2 = cx + heartLI[row];
+                a.y1 = top + row;
+                a.y2 = top + row;
+                lv_draw_rect(layer, &rdsc, &a);
+            }
+            if (hasRight) {
+                lv_area_t a;
+                a.x1 = cx + heartRI[row];
+                a.x2 = cx + heartRO[row];
+                a.y1 = top + row;
+                a.y2 = top + row;
+                lv_draw_rect(layer, &rdsc, &a);
+            }
+        }
+    }
+}
 
 // ─── Internal state ───────────────────────────────────────
 static lv_obj_t * topBar       = NULL;
@@ -31,6 +138,7 @@ static void createTileview(lv_obj_t * parent);
 static void createWidgetSlots(lv_obj_t * tile, int pageIdx);
 static void createDemoWidgets(lv_obj_t * tile, int pageIdx);
 static void createPage2Widgets(lv_obj_t * tile, int pageIdx);
+static lv_obj_t * createSocHeartWidget(lv_obj_t * parent, int w, int h);
 static lv_obj_t * createCellVoltageWidget(lv_obj_t * parent, int w, int h);
 static lv_obj_t * createEmptySlot(lv_obj_t * parent, int w, int h);
 static lv_obj_t * createFilledWidget(lv_obj_t * parent, int w, int h,
@@ -252,7 +360,12 @@ static void createDemoWidgets(lv_obj_t * tile, int pageIdx) {
         int x = WIDGET_MARGIN + i * (widgetW + WIDGET_GAP);
         int y = WIDGET_MARGIN;
 
-        if (i == 1) {
+        if (i == 0) {
+            // Custom SOC heart widget
+            lv_obj_t * w = createSocHeartWidget(tile, widgetW, widgetH);
+            lv_obj_set_pos(w, x, y);
+            widgetCards[pageIdx][i] = w;
+        } else if (i == 1) {
             // Custom cell voltage widget
             lv_obj_t * w = createCellVoltageWidget(tile, widgetW, widgetH);
             lv_obj_set_pos(w, x, y);
@@ -434,6 +547,57 @@ static lv_obj_t * createFilledWidget(lv_obj_t * parent, int w, int h,
 }
 
 // ═══════════════════════════════════════════════════════════
+//  SOC Heart Widget (fills with red proportionally to SOC%)
+// ═══════════════════════════════════════════════════════════
+
+static lv_obj_t * createSocHeartWidget(lv_obj_t * parent, int w, int h) {
+    // ── Card container ──
+    lv_obj_t * card = lv_obj_create(parent);
+    lv_obj_set_size(card, w, h);
+    lv_obj_set_style_bg_color(card, COLOR_WIDGET_BG, 0);
+    lv_obj_set_style_bg_opa(card, LV_OPA_COVER, 0);
+    lv_obj_set_style_border_color(card, COLOR_WIDGET_BORDER, 0);
+    lv_obj_set_style_border_width(card, 1, 0);
+    lv_obj_set_style_radius(card, 8, 0);
+    lv_obj_set_style_pad_all(card, 4, 0);
+    lv_obj_set_scrollbar_mode(card, LV_SCROLLBAR_MODE_OFF);
+    lv_obj_clear_flag(card, LV_OBJ_FLAG_SCROLLABLE);
+
+    // ── Title "SOC" ──
+    lv_obj_t * lblTitle = lv_label_create(card);
+    lv_label_set_text(lblTitle, "SOC");
+    lv_obj_set_style_text_color(lblTitle, COLOR_TEXT_SECONDARY, 0);
+    lv_obj_set_style_text_font(lblTitle, &lv_font_montserrat_14, 0);
+    lv_obj_align(lblTitle, LV_ALIGN_TOP_MID, 0, 0);
+
+    // ── Heart drawing area ──
+    int heartH = h - 24; // space for title + margins
+    int heartW = (int)(heartH * 32.0f / 29.0f); // proportional width
+    if (heartW > w - 12) heartW = w - 12; // clamp to card width
+
+    initHeartScanlines(heartW, heartH);
+
+    socHeartObj = lv_obj_create(card);
+    lv_obj_set_size(socHeartObj, heartW, heartH);
+    lv_obj_align(socHeartObj, LV_ALIGN_BOTTOM_MID, 0, 0);
+    lv_obj_set_style_bg_opa(socHeartObj, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_border_width(socHeartObj, 0, 0);
+    lv_obj_set_style_pad_all(socHeartObj, 0, 0);
+    lv_obj_set_scrollbar_mode(socHeartObj, LV_SCROLLBAR_MODE_OFF);
+    lv_obj_clear_flag(socHeartObj, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_add_event_cb(socHeartObj, socHeartDrawCb, LV_EVENT_DRAW_MAIN, NULL);
+
+    // ── Percentage label (centered over the heart) ──
+    lblSocPct = lv_label_create(card);
+    lv_label_set_text(lblSocPct, "--%");
+    lv_obj_set_style_text_color(lblSocPct, COLOR_TEXT_PRIMARY, 0);
+    lv_obj_set_style_text_font(lblSocPct, &lv_font_montserrat_24, 0);
+    lv_obj_align(lblSocPct, LV_ALIGN_CENTER, 0, 10);
+
+    return card;
+}
+
+// ═══════════════════════════════════════════════════════════
 //  Cell Voltage Widget (Delta + Min/Max)
 // ═══════════════════════════════════════════════════════════
 
@@ -607,15 +771,17 @@ static void obd_gui_update_timer_cb(lv_timer_t * timer) {
         }
 
         // ── Widget data updates ──
-        if (widgetCards[0][0] != NULL && obdSOC >= 0) {
-            lv_obj_t * lblValue = lv_obj_get_child(widgetCards[0][0], 1);
-            lv_obj_t * bar = lv_obj_get_child(widgetCards[0][0], 3);
-            if (lblValue && bar) {
+        // SOC Heart widget: update label + invalidate heart for redraw
+        if (lblSocPct != NULL) {
+            if (obdSOC >= 0) {
                 char buf[16];
-                snprintf(buf, sizeof(buf), "%.0f", obdSOC);
-                lv_label_set_text(lblValue, buf);
-                lv_bar_set_value(bar, (int)obdSOC, LV_ANIM_ON);
+                int socInt = (int)(obdSOC + 0.5f);
+                snprintf(buf, sizeof(buf), "%d%%", socInt);
+                lv_label_set_text(lblSocPct, buf);
+            } else {
+                lv_label_set_text(lblSocPct, "--%");
             }
+            if (socHeartObj) lv_obj_invalidate(socHeartObj);
         }
         
         if (widgetCards[0][1] != NULL && obdCellVoltageMax > 0 && obdCellVoltageMin > 0) {
