@@ -134,7 +134,7 @@ static void createTopBar(lv_obj_t * parent) {
     // ── Right: Page dots + Menu button ──
     // Menu button (rightmost)
     btnMenu = lv_button_create(topBar);
-    lv_obj_set_size(btnMenu, 36, 22);
+    lv_obj_set_size(btnMenu, 48, 26);
     lv_obj_align(btnMenu, LV_ALIGN_RIGHT_MID, 0, 0);
     lv_obj_set_style_bg_color(btnMenu, COLOR_WIDGET_BG, 0);
     lv_obj_set_style_bg_opa(btnMenu, LV_OPA_COVER, 0);
@@ -146,7 +146,7 @@ static void createTopBar(lv_obj_t * parent) {
     lv_obj_t * lblMenu = lv_label_create(btnMenu);
     lv_label_set_text(lblMenu, LV_SYMBOL_SETTINGS);
     lv_obj_set_style_text_color(lblMenu, COLOR_TEXT_SECONDARY, 0);
-    lv_obj_set_style_text_font(lblMenu, &lv_font_montserrat_14, 0);
+    lv_obj_set_style_text_font(lblMenu, &lv_font_montserrat_16, 0);
     lv_obj_center(lblMenu);
     lv_obj_add_event_cb(btnMenu, menuBtnClickCb, LV_EVENT_CLICKED, NULL);
 
@@ -154,7 +154,7 @@ static void createTopBar(lv_obj_t * parent) {
     int dotSize = 6;
     int dotGap  = 6;
     int totalDotsW = numPages * dotSize + (numPages - 1) * dotGap;
-    int dotsStartX = -(36 + 10 + totalDotsW); // 36=btn width, 10=gap
+    int dotsStartX = -(48 + 10 + totalDotsW); // 48=btn width, 10=gap
 
     for (int i = 0; i < numPages; i++) {
         lv_obj_t * dot = lv_obj_create(topBar);

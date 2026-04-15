@@ -16,6 +16,7 @@ static lv_obj_t *btMenuScreen = NULL;
 static lv_obj_t *infoMenuScreen = NULL;
 static lv_obj_t *rightPanel = NULL; // reusable right side
 static bool _visible = false;
+static bool _touchDebug = true; // Set to false to disable touch debug dots
 
 // ─── Layout constants ─────────────────────────────────────
 #define LEFT_PANEL_W 200
@@ -758,7 +759,7 @@ static lv_obj_t *createTopBar(lv_obj_t *parent, const char *title) {
 
   // Back button
   lv_obj_t *btnBack = lv_button_create(bar);
-  lv_obj_set_size(btnBack, 36, 22);
+  lv_obj_set_size(btnBack, 48, 26);
   lv_obj_align(btnBack, LV_ALIGN_LEFT_MID, 0, 0);
   lv_obj_set_style_bg_color(btnBack, COLOR_WIDGET_BG, 0);
   lv_obj_set_style_bg_opa(btnBack, LV_OPA_COVER, 0);
@@ -769,7 +770,7 @@ static lv_obj_t *createTopBar(lv_obj_t *parent, const char *title) {
   lv_obj_t *lblBack = lv_label_create(btnBack);
   lv_label_set_text(lblBack, LV_SYMBOL_LEFT);
   lv_obj_set_style_text_color(lblBack, COLOR_TEXT_SECONDARY, 0);
-  lv_obj_set_style_text_font(lblBack, &lv_font_montserrat_14, 0);
+  lv_obj_set_style_text_font(lblBack, &lv_font_montserrat_16, 0);
   lv_obj_center(lblBack);
   lv_obj_add_event_cb(btnBack, backBtnCb, LV_EVENT_CLICKED, NULL);
 

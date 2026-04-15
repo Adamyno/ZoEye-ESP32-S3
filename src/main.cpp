@@ -81,10 +81,56 @@ void obdTask(void *pvParameters) {
   }
 }
 
+// ═══════════════════════════════════════════════════════════
+//  Touch Debug Overlay - draws red dots at each touch point
+//  Set TOUCH_DEBUG_ENABLED to false to disable
+// ═══════════════════════════════════════════════════════════
+#define TOUCH_DEBUG_ENABLED true
+#define TOUCH_DOT_SIZE 10
+#define TOUCH_DOT_LIFETIME_MS 2000
+
+#if TOUCH_DEBUG_ENABLED
+static void touchDebugCb(lv_event_t *e) {
+  lv_indev_t *indev = lv_indev_active();
+  if (indev == NULL) return;
+  
+  lv_point_t point;
+  lv_indev_get_point(indev, &point);
+  
+  // Create a small red circle at the touch location
+  lv_obj_t *dot = lv_obj_create(lv_layer_top());
+  lv_obj_set_size(dot, TOUCH_DOT_SIZE, TOUCH_DOT_SIZE);
+  lv_obj_set_pos(dot, point.x - TOUCH_DOT_SIZE / 2, point.y - TOUCH_DOT_SIZE / 2);
+  lv_obj_set_style_radius(dot, LV_RADIUS_CIRCLE, 0);
+  lv_obj_set_style_bg_color(dot, lv_color_hex(0xFF0000), 0);
+  lv_obj_set_style_bg_opa(dot, LV_OPA_80, 0);
+  lv_obj_set_style_border_width(dot, 0, 0);
+  lv_obj_clear_flag(dot, (lv_obj_flag_t)(LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_SCROLLABLE));
+  lv_obj_set_scrollbar_mode(dot, LV_SCROLLBAR_MODE_OFF);
+  
+  // Delete after timeout
+  lv_obj_delete_delayed(dot, TOUCH_DOT_LIFETIME_MS);
+}
+
+static void setupTouchDebug(void) {
+  // Add a pressed event to the active screen's layer_top so it catches all presses
+  lv_obj_add_flag(lv_layer_top(), LV_OBJ_FLAG_CLICKABLE);
+  lv_obj_clear_flag(lv_layer_top(), LV_OBJ_FLAG_SCROLLABLE);
+  // Set click through so touches also reach widgets below
+  lv_obj_add_flag(lv_layer_top(), LV_OBJ_FLAG_EVENT_BUBBLE);
+  lv_obj_set_style_bg_opa(lv_layer_top(), LV_OPA_TRANSP, 0);
+  lv_obj_add_event_cb(lv_layer_top(), touchDebugCb, LV_EVENT_PRESSED, NULL);
+  Serial.println("[SYS] Touch debug overlay ENABLED");
+}
+#endif
+
 // Called when boot animation finishes
 static void onBootComplete(void) {
   Serial.println("[SYS] Boot animation done, loading dashboard...");
   UiDashboard::init();
+#if TOUCH_DEBUG_ENABLED
+  setupTouchDebug();
+#endif
 }
 
 void setup()
