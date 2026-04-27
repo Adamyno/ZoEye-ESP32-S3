@@ -22,8 +22,20 @@ int obdClimateLoopMode = -99;
 float obdCellVoltageMax = -1;
 float obdCellVoltageMin = -1;
 float obdMaxChargePower = -1;
+float obdAvailEnergy = -1;
 float obdHumidity = -1;
 float obdHVBatVoltage = -1;
+float obdFanSpeed = -1;
+float obdHVBatCurrent = -999;
+float obdDCPower = -999;
+float obdInsulationRes = -1;
+float obdACPhase = -1;
+float obd12VBatVoltage = -1;
+float obd12VCurrent = -1;
+float obdDCDCLoad = -1;
+
+uint32_t activePollFlags = POLL_SOH | POLL_SOC | POLL_BAT_TEMP | POLL_HV_VOLT | POLL_AVAIL_ENERGY | POLL_HVAC | POLL_LBC | POLL_MAX_CHARGE | POLL_AC_COMP;
+int currentDashPage = 0;
 
 unsigned long lastOBDPollTime = 0;
 unsigned long lastOBDRxTime = 0;

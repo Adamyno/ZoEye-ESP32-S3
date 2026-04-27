@@ -513,9 +513,35 @@ void ObdManager::processEvcStep() {
     return;
   }
 
+  // ─── Poll Flag → EVC state mapping (skip if flag not set) ───
+  auto shouldSkipState = [](EvcPollState st) -> bool {
+    switch (st) {
+      case EVC_QUERY_SOH:          return !(activePollFlags & POLL_SOH);
+      case EVC_QUERY_SOC:          return !(activePollFlags & POLL_SOC);
+      case EVC_QUERY_BAT_TEMP:     return !(activePollFlags & POLL_BAT_TEMP);
+      case EVC_QUERY_HV_VOLT:      return !(activePollFlags & POLL_HV_VOLT);
+      case EVC_QUERY_AVAIL_ENERGY: return !(activePollFlags & POLL_AVAIL_ENERGY);
+      case EVC_QUERY_HV_CURRENT:   return !(activePollFlags & POLL_HV_CURRENT);
+      case EVC_QUERY_FAN_SPEED:    return !(activePollFlags & POLL_FAN_SPEED);
+      case EVC_QUERY_AC_PHASE:     return !(activePollFlags & POLL_AC_PHASE);
+      case EVC_QUERY_INSULATION:   return !(activePollFlags & POLL_INSULATION);
+      case EVC_QUERY_DCDC_LOAD:    return !(activePollFlags & POLL_DCDC_LOAD);
+      case EVC_QUERY_12V_CURRENT:  return !(activePollFlags & POLL_12V_CURRENT);
+      case EVC_QUERY_AT_RV:        return !(activePollFlags & POLL_AT_RV);
+      default: return false;
+    }
+  };
+
+  // Skip states whose poll flag is not active
+  while (evcState >= EVC_QUERY_SOH && evcState < EVC_DONE && shouldSkipState(evcState)) {
+    evcState = (EvcPollState)(evcState + 1);
+  }
+  if (evcState == EVC_DONE) { obdCurrentECU = 0; evcState = EVC_IDLE; lastOBDRxTime = millis(); return; }
+
   unsigned long now = millis();
-  unsigned long timeout = (evcState >= EVC_QUERY_SOC && evcState <= EVC_QUERY_HV_VOLT) ? HVAC_ISOTP_TIMEOUT : HVAC_AT_TIMEOUT;
+  unsigned long timeout = (evcState >= EVC_QUERY_SOH && evcState <= EVC_QUERY_AT_RV) ? HVAC_ISOTP_TIMEOUT : HVAC_AT_TIMEOUT;
   if (evcState == EVC_SESSION) timeout = 2000;
+  if (evcState == EVC_QUERY_AT_RV) timeout = 2000; // AT RV is an AT command, faster timeout
 
   if (evcCmdSentTime > 0) {
     String r = "";
@@ -527,8 +553,19 @@ void ObdManager::processEvcStep() {
     if (r.length() > 0) {
       evcCmdSentTime = 0;
       switch (evcState) {
+        case EVC_QUERY_SOH: {
+          if (r.indexOf("623206") >= 0 || r.indexOf("62 32 06") >= 0) {
+            int raw = parseUDSHex(r, "623206", 1);
+            if (raw >= 0 && xSemaphoreTake(obdDataMutex, portMAX_DELAY)) {
+                obdSOH = raw;
+                Serial.printf("[ZOE] SOH = %d%%\n", obdSOH);
+                lastOBDRxTime = millis();
+                xSemaphoreGive(obdDataMutex);
+            }
+          }
+          break;
+        }
         case EVC_QUERY_SOC: {
-          // Response: 62 20 02 XX XX -> raw * 0.02 = SOC%
           if (r.indexOf("622002") >= 0 || r.indexOf("62 20 02") >= 0) {
             int raw = parseUDSHex(r, "622002", 2);
             if (raw >= 0 && xSemaphoreTake(obdDataMutex, portMAX_DELAY)) {
@@ -541,7 +578,6 @@ void ObdManager::processEvcStep() {
           break;
         }
         case EVC_QUERY_BAT_TEMP: {
-          // Response: 62 20 01 XX -> raw - 40 = temp °C
           if (r.indexOf("622001") >= 0 || r.indexOf("62 20 01") >= 0) {
             int raw = parseUDSHex(r, "622001", 1);
             if (raw >= 0 && xSemaphoreTake(obdDataMutex, portMAX_DELAY)) {
@@ -554,15 +590,121 @@ void ObdManager::processEvcStep() {
           break;
         }
         case EVC_QUERY_HV_VOLT: {
-          // Response: 62 32 03 XX XX -> raw * 0.5 = V
           if (r.indexOf("623203") >= 0 || r.indexOf("62 32 03") >= 0) {
             int raw = parseUDSHex(r, "623203", 2);
             if (raw >= 0 && xSemaphoreTake(obdDataMutex, portMAX_DELAY)) {
                 obdHVBatVoltage = raw * 0.5f;
                 Serial.printf("[ZOE] HV Voltage = %.1f V\n", obdHVBatVoltage);
+                // Recalculate DC Power if current is known
+                if (obdHVBatCurrent > -900) {
+                    obdDCPower = obdHVBatVoltage * obdHVBatCurrent / 1000.0f;
+                }
                 lastOBDRxTime = millis();
                 xSemaphoreGive(obdDataMutex);
             }
+          }
+          break;
+        }
+        case EVC_QUERY_AVAIL_ENERGY: {
+          if (r.indexOf("62320C") >= 0 || r.indexOf("62 32 0C") >= 0) {
+            int raw = parseUDSHex(r, "62320C", 2);
+            if (raw >= 0 && xSemaphoreTake(obdDataMutex, portMAX_DELAY)) {
+                obdAvailEnergy = raw * 0.005f;
+                Serial.printf("[ZOE] Available Energy = %.1f kWh\n", obdAvailEnergy);
+                lastOBDRxTime = millis();
+                xSemaphoreGive(obdDataMutex);
+            }
+          }
+          break;
+        }
+        case EVC_QUERY_HV_CURRENT: {
+          if (r.indexOf("623204") >= 0 || r.indexOf("62 32 04") >= 0) {
+            int raw = parseUDSHex(r, "623204", 2);
+            if (raw >= 0 && xSemaphoreTake(obdDataMutex, portMAX_DELAY)) {
+                obdHVBatCurrent = (raw - 32768) * 0.25f;
+                Serial.printf("[ZOE] HV Current = %.2f A\n", obdHVBatCurrent);
+                if (obdHVBatVoltage > 0) {
+                    obdDCPower = obdHVBatVoltage * obdHVBatCurrent / 1000.0f;
+                    Serial.printf("[ZOE] DC Power = %.2f kW\n", obdDCPower);
+                }
+                lastOBDRxTime = millis();
+                xSemaphoreGive(obdDataMutex);
+            }
+          }
+          break;
+        }
+        case EVC_QUERY_FAN_SPEED: {
+          if (r.indexOf("623471") >= 0 || r.indexOf("62 34 71") >= 0) {
+            int raw = parseUDSHex(r, "623471", 1);
+            if (raw >= 0 && xSemaphoreTake(obdDataMutex, portMAX_DELAY)) {
+                obdFanSpeed = raw * 5;
+                Serial.printf("[ZOE] Engine Fan = %.0f%%\n", obdFanSpeed);
+                lastOBDRxTime = millis();
+                xSemaphoreGive(obdDataMutex);
+            }
+          }
+          break;
+        }
+        case EVC_QUERY_AC_PHASE: {
+          if (r.indexOf("6233BA") >= 0 || r.indexOf("62 33 BA") >= 0) {
+            int raw = parseUDSBits(r, "6233BA", 30, 31);
+            if (raw >= 0 && xSemaphoreTake(obdDataMutex, portMAX_DELAY)) {
+                if (raw == 2) obdACPhase = 3;
+                else obdACPhase = raw;
+                Serial.printf("[ZOE] AC Phase = %.0f (raw=%d)\n", obdACPhase, raw);
+                lastOBDRxTime = millis();
+                xSemaphoreGive(obdDataMutex);
+            }
+          }
+          break;
+        }
+        case EVC_QUERY_INSULATION: {
+          if (r.indexOf("6233EE") >= 0 || r.indexOf("62 33 EE") >= 0) {
+            int raw = parseUDSBits(r, "6233EE", 24, 39);
+            if (raw >= 0 && xSemaphoreTake(obdDataMutex, portMAX_DELAY)) {
+                obdInsulationRes = raw * 100.0f; // Ohm
+                Serial.printf("[ZOE] Insulation = %.0f Ohm (raw=%d)\n", obdInsulationRes, raw);
+                lastOBDRxTime = millis();
+                xSemaphoreGive(obdDataMutex);
+            }
+          }
+          break;
+        }
+        case EVC_QUERY_DCDC_LOAD: {
+          if (r.indexOf("623028") >= 0 || r.indexOf("62 30 28") >= 0) {
+            int raw = parseUDSHex(r, "623028", 1);
+            if (raw >= 0 && xSemaphoreTake(obdDataMutex, portMAX_DELAY)) {
+                obdDCDCLoad = raw * 0.390625f;
+                Serial.printf("[ZOE] DCDC Load = %.1f%%\n", obdDCDCLoad);
+                lastOBDRxTime = millis();
+                xSemaphoreGive(obdDataMutex);
+            }
+          }
+          break;
+        }
+        case EVC_QUERY_12V_CURRENT: {
+          if (r.indexOf("623025") >= 0 || r.indexOf("62 30 25") >= 0) {
+            int raw = parseUDSHex(r, "623025", 1);
+            if (raw >= 0 && xSemaphoreTake(obdDataMutex, portMAX_DELAY)) {
+                obd12VCurrent = (float)raw;
+                Serial.printf("[ZOE] 12V Current = %.0f A\n", obd12VCurrent);
+                lastOBDRxTime = millis();
+                xSemaphoreGive(obdDataMutex);
+            }
+          }
+          break;
+        }
+        case EVC_QUERY_AT_RV: {
+          // AT RV returns something like "12.3V" or "12.3"
+          r.trim();
+          r.replace("V", "");
+          r.replace("v", "");
+          float v = r.toFloat();
+          if (v > 5.0f && v < 20.0f && xSemaphoreTake(obdDataMutex, portMAX_DELAY)) {
+              obd12VBatVoltage = v;
+              Serial.printf("[ZOE] 12V = %.1f V\n", obd12VBatVoltage);
+              lastOBDRxTime = millis();
+              xSemaphoreGive(obdDataMutex);
           }
           break;
         }
@@ -587,9 +729,18 @@ void ObdManager::processEvcStep() {
     case EVC_SWITCH_CRA:     sendCommand("ATCRA7EC");     break;
     case EVC_SWITCH_FCSH:    sendCommand("ATFCSH7E4");    break;
     case EVC_SESSION:        sendCommand("10C0");         break;
-    case EVC_QUERY_SOC:      sendCommand("222002");       break;
-    case EVC_QUERY_BAT_TEMP: sendCommand("222001");       break;
-    case EVC_QUERY_HV_VOLT:  sendCommand("223203");       break;
+    case EVC_QUERY_SOH:          sendCommand("223206");       break;
+    case EVC_QUERY_SOC:          sendCommand("222002");       break;
+    case EVC_QUERY_BAT_TEMP:     sendCommand("222001");       break;
+    case EVC_QUERY_HV_VOLT:      sendCommand("223203");       break;
+    case EVC_QUERY_AVAIL_ENERGY: sendCommand("22320C");       break;
+    case EVC_QUERY_HV_CURRENT:   sendCommand("223204");       break;
+    case EVC_QUERY_FAN_SPEED:    sendCommand("223471");       break;
+    case EVC_QUERY_AC_PHASE:     sendCommand("2233BA");       break;
+    case EVC_QUERY_INSULATION:   sendCommand("2233EE");       break;
+    case EVC_QUERY_DCDC_LOAD:    sendCommand("223028");       break;
+    case EVC_QUERY_12V_CURRENT:  sendCommand("223025");       break;
+    case EVC_QUERY_AT_RV:        sendCommand("ATRV");         break;
     default:
       evcState = EVC_DONE;
       evcCmdSentTime = 0;

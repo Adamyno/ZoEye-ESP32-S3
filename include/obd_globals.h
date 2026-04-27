@@ -4,7 +4,25 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/semphr.h>
 
-#define ZOEYEE_VERSION "v1.1.0-S3"
+#define ZOEYEE_VERSION "v1.2.2-S3"
+
+// ─── Poll Flags (bitmask) ────────────────────────────────
+#define POLL_SOH           (1 << 0)
+#define POLL_SOC           (1 << 1)
+#define POLL_BAT_TEMP      (1 << 2)
+#define POLL_HV_VOLT       (1 << 3)
+#define POLL_AVAIL_ENERGY  (1 << 4)
+#define POLL_HV_CURRENT    (1 << 5)
+#define POLL_FAN_SPEED     (1 << 6)
+#define POLL_AC_PHASE      (1 << 7)
+#define POLL_INSULATION    (1 << 8)
+#define POLL_DCDC_LOAD     (1 << 9)
+#define POLL_12V_CURRENT   (1 << 10)
+#define POLL_AT_RV         (1 << 11)
+#define POLL_HVAC          (1 << 12)
+#define POLL_LBC           (1 << 13)
+#define POLL_MAX_CHARGE    (1 << 14)
+#define POLL_AC_COMP       (1 << 15)
 
 // HVAC Polling State Machine (non-blocking)
 enum HvacPollState {
@@ -50,16 +68,25 @@ enum LbcPollState {
   LBC_DONE
 };
 
-// EVC Polling State Machine (non-blocking) - SOC, HV Voltage, Battery Temp
+// EVC Polling State Machine (non-blocking) - dynamic per-page polling
 enum EvcPollState {
   EVC_IDLE = 0,
   EVC_SWITCH_SH,
   EVC_SWITCH_CRA,
   EVC_SWITCH_FCSH,
   EVC_SESSION,
-  EVC_QUERY_SOC,      // 222002
-  EVC_QUERY_BAT_TEMP, // 222001
-  EVC_QUERY_HV_VOLT,  // 223203
+  EVC_QUERY_SOH,           // 223206 - Battery State of Health
+  EVC_QUERY_SOC,           // 222002
+  EVC_QUERY_BAT_TEMP,      // 222001
+  EVC_QUERY_HV_VOLT,       // 223203
+  EVC_QUERY_AVAIL_ENERGY,  // 22320C
+  EVC_QUERY_HV_CURRENT,    // 223204 - HV Battery Current
+  EVC_QUERY_FAN_SPEED,     // 223471 - Engine Fan Speed
+  EVC_QUERY_AC_PHASE,      // 2233BA - AC Charge Phase
+  EVC_QUERY_INSULATION,    // 2233EE - Insulation Resistance
+  EVC_QUERY_DCDC_LOAD,     // 223028 - DCDC Converter Load
+  EVC_QUERY_12V_CURRENT,   // 223025 - 12V DCDC Current
+  EVC_QUERY_AT_RV,         // AT RV  - 12V Battery Voltage
   EVC_DONE
 };
 
@@ -99,8 +126,21 @@ extern int obdClimateLoopMode;
 extern float obdCellVoltageMax;
 extern float obdCellVoltageMin;
 extern float obdMaxChargePower;
+extern float obdAvailEnergy;
 extern float obdHumidity;
 extern float obdHVBatVoltage;
+extern float obdFanSpeed;
+extern float obdHVBatCurrent;
+extern float obdDCPower;
+extern float obdInsulationRes;
+extern float obdACPhase;
+extern float obd12VBatVoltage;
+extern float obd12VCurrent;
+extern float obdDCDCLoad;
+
+// Polling system
+extern uint32_t activePollFlags;
+extern int currentDashPage;
 
 // Polling configuration & tracking
 extern unsigned long lastOBDPollTime;

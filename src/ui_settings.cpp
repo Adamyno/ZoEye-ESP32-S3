@@ -4,6 +4,7 @@
 #include "obd_globals.h"
 #include "ui_boot.h"
 #include "ui_dashboard.h"
+#include "user_config.h"
 #include <cstdio>
 #include <esp_system.h>
 #include <esp_heap_caps.h>
@@ -14,6 +15,7 @@
 static lv_obj_t *settingsScreen = NULL;
 static lv_obj_t *btMenuScreen = NULL;
 static lv_obj_t *infoMenuScreen = NULL;
+static lv_obj_t *brightMenuScreen = NULL;
 static lv_obj_t *rightPanel = NULL; // reusable right side
 static bool _visible = false;
 static bool _touchDebug = true; // Set to false to disable touch debug dots
@@ -42,6 +44,9 @@ static void saveToggleCb(lv_event_t *e);
 static void deleteCfgBtnCb(lv_event_t *e);
 static void backToListBtnCb(lv_event_t *e);
 static void showInfoMenu(void);
+static void showBrightMenu(void);
+static void brightCardCb(lv_event_t *e);
+static void brightSliderCb(lv_event_t *e);
 static void drawSignalBars(lv_obj_t *parent, int rssi, int x, int y);
 
 // Get same widget dimensions as dashboard
@@ -181,8 +186,41 @@ void UiSettings::show(void) {
     lv_obj_add_event_cb(card, btCardCb, LV_EVENT_CLICKED, NULL);
   }
 
-  // Remaining empty cards (3 & 4) with "+" style
-  for (int i = 2; i < WIDGET_COUNT; i++) {
+  // Card 3: Brightness
+  {
+    int x = WIDGET_MARGIN + 2 * (cardW + WIDGET_GAP);
+    int y = TOP_BAR_H + WIDGET_MARGIN;
+
+    lv_obj_t *card = lv_obj_create(settingsScreen);
+    lv_obj_set_size(card, cardW, cardH);
+    lv_obj_set_pos(card, x, y);
+    lv_obj_set_style_bg_color(card, COLOR_WIDGET_BG, 0);
+    lv_obj_set_style_bg_opa(card, LV_OPA_COVER, 0);
+    lv_obj_set_style_border_color(card, COLOR_WIDGET_BORDER, 0);
+    lv_obj_set_style_border_width(card, 1, 0);
+    lv_obj_set_style_radius(card, 8, 0);
+    lv_obj_set_style_pad_all(card, 0, 0);
+    lv_obj_set_scrollbar_mode(card, LV_SCROLLBAR_MODE_OFF);
+    lv_obj_clear_flag(card, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_add_flag(card, LV_OBJ_FLAG_CLICKABLE);
+
+    lv_obj_t *icon = lv_label_create(card);
+    lv_label_set_text(icon, LV_SYMBOL_IMAGE); // sun icon
+    lv_obj_set_style_text_color(icon, COLOR_YELLOW, 0);
+    lv_obj_set_style_text_font(icon, &lv_font_montserrat_28, 0);
+    lv_obj_align(icon, LV_ALIGN_CENTER, 0, -10);
+
+    lv_obj_t *lbl = lv_label_create(card);
+    lv_label_set_text(lbl, "Brightness");
+    lv_obj_set_style_text_color(lbl, COLOR_TEXT_PRIMARY, 0);
+    lv_obj_set_style_text_font(lbl, &lv_font_montserrat_16, 0);
+    lv_obj_align(lbl, LV_ALIGN_CENTER, 0, 18);
+
+    lv_obj_add_event_cb(card, brightCardCb, LV_EVENT_CLICKED, NULL);
+  }
+
+  // Remaining empty cards (4) with "+" style
+  for (int i = 3; i < WIDGET_COUNT; i++) {
     int x = WIDGET_MARGIN + i * (cardW + WIDGET_GAP);
     int y = TOP_BAR_H + WIDGET_MARGIN;
 
@@ -217,6 +255,10 @@ void UiSettings::hide(void) {
   if (infoMenuScreen) {
     lv_obj_delete(infoMenuScreen);
     infoMenuScreen = NULL;
+  }
+  if (brightMenuScreen) {
+    lv_obj_delete(brightMenuScreen);
+    brightMenuScreen = NULL;
   }
   if (settingsScreen) {
     lv_obj_delete(settingsScreen);
@@ -457,6 +499,96 @@ static void showInfoMenu(void) {
     lv_label_set_text(r, buf);
     lv_obj_set_style_text_font(r, &lv_font_montserrat_14, 0);
   }
+}
+
+// ═══════════════════════════════════════════════════════════
+//  Brightness Sub-Menu
+// ═══════════════════════════════════════════════════════════
+extern int preferences_get_bright_pct(void); // Or we can read it directly from NVS
+
+static void showBrightMenu(void) {
+  if (brightMenuScreen) {
+    lv_obj_delete(brightMenuScreen);
+    brightMenuScreen = NULL;
+  }
+
+  brightMenuScreen = lv_obj_create(lv_screen_active());
+  lv_obj_set_size(brightMenuScreen, SCREEN_W, SCREEN_H);
+  lv_obj_align(brightMenuScreen, LV_ALIGN_TOP_LEFT, 0, 0);
+  lv_obj_set_style_bg_color(brightMenuScreen, COLOR_BG, 0);
+  lv_obj_set_style_bg_opa(brightMenuScreen, LV_OPA_COVER, 0);
+  lv_obj_set_style_border_width(brightMenuScreen, 0, 0);
+  lv_obj_set_style_pad_all(brightMenuScreen, 0, 0);
+  lv_obj_clear_flag(brightMenuScreen, LV_OBJ_FLAG_SCROLLABLE);
+
+  // Top Bar
+  lv_obj_t *bar = lv_obj_create(brightMenuScreen);
+  lv_obj_set_size(bar, SCREEN_W, TOP_BAR_H);
+  lv_obj_set_style_bg_color(bar, COLOR_TOP_BAR, 0);
+  lv_obj_set_style_bg_opa(bar, LV_OPA_COVER, 0);
+  lv_obj_set_style_border_width(bar, 0, 0);
+  lv_obj_set_style_pad_all(bar, 0, 0);
+  lv_obj_set_style_pad_left(bar, 8, 0);
+  lv_obj_clear_flag(bar, LV_OBJ_FLAG_SCROLLABLE);
+
+  lv_obj_t *btnBack = lv_button_create(bar);
+  lv_obj_set_size(btnBack, 48, 32);
+  lv_obj_align(btnBack, LV_ALIGN_LEFT_MID, 0, 0);
+  lv_obj_set_style_bg_color(btnBack, COLOR_WIDGET_BG, 0);
+  lv_obj_set_style_bg_opa(btnBack, LV_OPA_COVER, 0);
+  lv_obj_set_style_border_color(btnBack, COLOR_WIDGET_BORDER, 0);
+  lv_obj_set_style_border_width(btnBack, 1, 0);
+  lv_obj_set_style_radius(btnBack, 4, 0);
+  lv_obj_t *lblBack = lv_label_create(btnBack);
+  lv_label_set_text(lblBack, LV_SYMBOL_LEFT);
+  lv_obj_set_style_text_font(lblBack, &lv_font_montserrat_20, 0);
+  lv_obj_center(lblBack);
+  lv_obj_add_event_cb(btnBack, backBtnCb, LV_EVENT_CLICKED, NULL);
+
+  lv_obj_t *lblTitle = lv_label_create(bar);
+  lv_label_set_text(lblTitle, "Brightness");
+  lv_obj_set_style_text_color(lblTitle, COLOR_CYAN, 0);
+  lv_obj_set_style_text_font(lblTitle, &lv_font_montserrat_20, 0);
+  lv_obj_align(lblTitle, LV_ALIGN_CENTER, 0, 0);
+
+  // Content
+  lv_obj_t *cont = lv_obj_create(brightMenuScreen);
+  lv_obj_set_size(cont, SCREEN_W, SCREEN_H - TOP_BAR_H);
+  lv_obj_align(cont, LV_ALIGN_TOP_LEFT, 0, TOP_BAR_H);
+  lv_obj_set_style_bg_opa(cont, 0, 0);
+  lv_obj_set_style_border_width(cont, 0, 0);
+  lv_obj_set_style_pad_all(cont, 15, 0);
+  
+  // Slider label
+  lv_obj_t *lblValue = lv_label_create(cont);
+  lv_obj_set_style_text_color(lblValue, COLOR_TEXT_PRIMARY, 0);
+  lv_obj_set_style_text_font(lblValue, &lv_font_montserrat_20, 0);
+  lv_obj_align(lblValue, LV_ALIGN_TOP_MID, 0, 10);
+  
+  // Get current brightness from NVS
+  preferences.begin("zoeyee", true);
+  int curBright = preferences.getInt("bl_pct", 100);
+  preferences.end();
+  
+  char buf[32];
+  snprintf(buf, sizeof(buf), "%d%%", curBright);
+  lv_label_set_text(lblValue, buf);
+  
+  // Slider
+  lv_obj_t *slider = lv_slider_create(cont);
+  lv_obj_set_width(slider, 400);
+  lv_obj_align(slider, LV_ALIGN_CENTER, 0, 10);
+  lv_slider_set_range(slider, 1, 100);
+  lv_slider_set_value(slider, curBright, LV_ANIM_OFF);
+  
+  // Slider styles
+  lv_obj_set_style_bg_color(slider, COLOR_WIDGET_BORDER, LV_PART_MAIN);
+  lv_obj_set_style_bg_color(slider, COLOR_YELLOW, LV_PART_INDICATOR);
+  lv_obj_set_style_bg_color(slider, COLOR_TEXT_PRIMARY, LV_PART_KNOB);
+  
+  // Attach the label to the slider's user data so the callback can update it
+  lv_obj_set_user_data(slider, lblValue);
+  lv_obj_add_event_cb(slider, brightSliderCb, LV_EVENT_VALUE_CHANGED, NULL);
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -816,12 +948,33 @@ static void backBtnCb(lv_event_t *e) {
     infoMenuScreen = NULL;
     return;
   }
+  if (brightMenuScreen) {
+    lv_obj_delete(brightMenuScreen);
+    brightMenuScreen = NULL;
+    return;
+  }
   UiSettings::hide();
 }
 
 static void infoCardCb(lv_event_t *e) { showInfoMenu(); }
 
 static void btCardCb(lv_event_t *e) { UiSettings::showBtMenu(); }
+
+static void brightCardCb(lv_event_t *e) { showBrightMenu(); }
+
+static void brightSliderCb(lv_event_t *e) {
+  lv_obj_t *slider = (lv_obj_t *)lv_event_get_target(e);
+  int val = lv_slider_get_value(slider);
+  
+  lv_obj_t *lblValue = (lv_obj_t *)lv_obj_get_user_data(slider);
+  if (lblValue) {
+      char buf[32];
+      snprintf(buf, sizeof(buf), "%d%%", val);
+      lv_label_set_text(lblValue, buf);
+  }
+  
+  setSystemBrightness(val);
+}
 
 static void scanBtnCb(lv_event_t *e) {
   clearRightPanel();

@@ -13,6 +13,39 @@
 
 static TaskHandle_t obdTaskHandle = NULL;
 
+// ─── Brightness Control ─────────────────────────────────────
+// Hardware PWM: 0 = full brightness, 255 = completely dark
+static volatile int currentBrightnessPct = 100; // 1-100%
+static volatile bool brightnessBtnPressed = false;
+static unsigned long lastBtnTime = 0;
+
+static uint16_t percentToDuty(int pct) {
+    if (pct < 1) pct = 1;
+    if (pct > 100) pct = 100;
+    // Active low: 0 = max brightness, 255 = completely dark
+    // The previous math showed that 26% (duty 165) was the lowest working value.
+    // Map 1-100% to 165-0 so 1% is precisely the dimmest visible level.
+    int range = 165;
+    int duty = range - ((pct - 1) * range / 99);
+    return (uint16_t)duty;
+}
+
+void setSystemBrightness(int pct) {
+    if (pct < 1) pct = 1;
+    if (pct > 100) pct = 100;
+    currentBrightnessPct = pct;
+    setUpduty(percentToDuty(pct));
+    
+    // Save to NVS
+    preferences.begin("zoeyee", false);
+    preferences.putInt("bl_pct", pct);
+    preferences.end();
+}
+
+static void IRAM_ATTR btnBrightnessISR() {
+    brightnessBtnPressed = true;
+}
+
 void obdTask(void *pvParameters) {
   Serial.println("[OBD] Background task started on Core 0");
   const unsigned long RECONNECT_INTERVAL = 15000;
@@ -33,9 +66,7 @@ void obdTask(void *pvParameters) {
     }
     
     if (connected && !connecting) {
-        // BT is connected - handle CAN layer
         if (!canReady && !canInitInProgress) {
-            // CAN not ready yet - try to init (with 5s retry interval)
             if (millis() - lastCanRetry > CAN_RETRY_INTERVAL) {
                 lastCanRetry = millis();
                 canInitInProgress = true;
@@ -53,8 +84,6 @@ void obdTask(void *pvParameters) {
                 }
             }
         } else if (canReady) {
-            // Both BT and CAN ready - page-aware polling
-            // Only poll ECUs needed for the currently visible page
             if (hvacState != HVAC_IDLE) {
                 ObdManager::processHvacStep();
             } else if (evcState != EVC_IDLE) {
@@ -62,22 +91,18 @@ void obdTask(void *pvParameters) {
             } else if (lbcState != LBC_IDLE) {
                 ObdManager::processLbcStep();
             } else {
-                // All idle — start next phase based on current page
                 int page = UiDashboard::getCurrentPage();
                 static int pollPhase = 0;
                 
                 if (page == 0) {
-                    // Page 0: SOC(EVC), CellV(LBC), Cabin+Ext(HVAC)
                     switch (pollPhase % 3) {
                         case 0: hvacState = HVAC_SWITCH_SH; break;
                         case 1: evcState = EVC_SWITCH_SH;   break;
                         case 2: lbcState = LBC_SWITCH_SH;   break;
                     }
                 } else if (page == 1) {
-                    // Page 1: HV Battery(EVC) only
                     evcState = EVC_SWITCH_SH;
                 } else {
-                    // Default: full cycle
                     switch (pollPhase % 3) {
                         case 0: hvacState = HVAC_SWITCH_SH; break;
                         case 1: evcState = EVC_SWITCH_SH;   break;
@@ -88,7 +113,6 @@ void obdTask(void *pvParameters) {
             }
         }
     } else {
-        // BT not connected - try reconnect
         String mac = "";
         uint8_t atype = 0;
         if (xSemaphoreTake(obdDataMutex, pdMS_TO_TICKS(100))) {
@@ -107,8 +131,7 @@ void obdTask(void *pvParameters) {
 }
 
 // ═══════════════════════════════════════════════════════════
-//  Touch Debug Overlay - draws red dots at each touch point
-//  Set TOUCH_DEBUG_ENABLED to false to disable
+//  Touch Debug Overlay
 // ═══════════════════════════════════════════════════════════
 #define TOUCH_DEBUG_ENABLED true
 #define TOUCH_DOT_SIZE 10
@@ -118,14 +141,9 @@ void obdTask(void *pvParameters) {
 static void touchDebugIndevCb(lv_event_t *e) {
   lv_indev_t *indev = (lv_indev_t *)lv_event_get_target(e);
   if (indev == NULL) return;
-  
   lv_point_t point;
   lv_indev_get_point(indev, &point);
-  
-  // Skip (0,0) which is the default/invalid position
   if (point.x == 0 && point.y == 0) return;
-  
-  // Create a small red circle at the touch location on layer_top (above everything)
   lv_obj_t *dot = lv_obj_create(lv_layer_top());
   lv_obj_set_size(dot, TOUCH_DOT_SIZE, TOUCH_DOT_SIZE);
   lv_obj_set_pos(dot, point.x - TOUCH_DOT_SIZE / 2, point.y - TOUCH_DOT_SIZE / 2);
@@ -136,13 +154,10 @@ static void touchDebugIndevCb(lv_event_t *e) {
   lv_obj_set_style_pad_all(dot, 0, 0);
   lv_obj_clear_flag(dot, (lv_obj_flag_t)(LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_SCROLLABLE));
   lv_obj_set_scrollbar_mode(dot, LV_SCROLLBAR_MODE_OFF);
-  
-  // Delete after timeout
   lv_obj_delete_delayed(dot, TOUCH_DOT_LIFETIME_MS);
 }
 
 static void setupTouchDebug(void) {
-  // Attach to the input device directly - this does NOT block touches to widgets
   lv_indev_t *indev = lv_indev_get_next(NULL);
   if (indev) {
     lv_indev_add_event_cb(indev, touchDebugIndevCb, LV_EVENT_PRESSED, NULL);
@@ -150,7 +165,6 @@ static void setupTouchDebug(void) {
   }
 }
 #endif
-
 
 // Called when boot animation finishes
 static void onBootComplete(void) {
@@ -172,12 +186,25 @@ void setup()
   // Hardware init
   i2c_master_Init();
   lvgl_port_init();
-  lcd_bl_pwm_bsp_init(LCD_PWM_MODE_255);
+
+  // Load saved brightness from NVS
+  preferences.begin("zoeyee", true);
+  // Try new key first, fallback to 100
+  currentBrightnessPct = preferences.getInt("bl_pct", 100);
+  if (currentBrightnessPct < 1 || currentBrightnessPct > 100) currentBrightnessPct = 100;
+  preferences.end();
+
+  lcd_bl_pwm_bsp_init(percentToDuty(currentBrightnessPct));
+  Serial.printf("[SYS] Brightness = %d%%\n", currentBrightnessPct);
+
+  // BOOT button = brightness cycling
+  pinMode(BTN_BRIGHTNESS_PIN, INPUT_PULLUP);
+  attachInterrupt(digitalPinToInterrupt(BTN_BRIGHTNESS_PIN), btnBrightnessISR, FALLING);
 
   obdDataMutex = xSemaphoreCreateMutex();
 
   // Load saved BT MAC from NVS for auto-reconnect
-  preferences.begin("zoeyee", true); // read-only
+  preferences.begin("zoeyee", true);
   String savedMAC = preferences.getString("bt_mac", "");
   String savedName = preferences.getString("bt_name", "");
   uint8_t savedType = preferences.getUChar("bt_type", 0);
@@ -192,23 +219,15 @@ void setup()
     }
   }
 
-  // Init NimBLE stack
   NimBLEDevice::init("ZoEyee");
   NimBLEDevice::setOwnAddrType(BLE_OWN_ADDR_PUBLIC);
 
   xTaskCreatePinnedToCore(
-      obdTask,
-      "obdTask",
-      8192,
-      NULL,
-      1,
-      &obdTaskHandle,
-      0
+      obdTask, "obdTask", 8192, NULL, 1, &obdTaskHandle, 0
   );
 
   Serial.println("[SYS] Display initialized.");
 
-  // Show boot splash (mutex-protected)
   if (example_lvgl_lock(-1)) {
     UiBoot::show(lv_screen_active(), onBootComplete);
     example_lvgl_unlock();
@@ -222,5 +241,23 @@ void setup()
 
 void loop()
 {
-  delay(100);
+  // Handle brightness button press (debounced from ISR)
+  if (brightnessBtnPressed) {
+    unsigned long now = millis();
+    if (now - lastBtnTime > 250) {
+      lastBtnTime = now;
+      int pct = currentBrightnessPct;
+      // Cycle: 1 -> 5 -> 20 -> 65 -> 100 -> 1
+      if (pct < 5) pct = 5;
+      else if (pct < 20) pct = 20;
+      else if (pct < 65) pct = 65;
+      else if (pct < 100) pct = 100;
+      else pct = 1;
+      
+      setSystemBrightness(pct);
+      Serial.printf("[SYS] Brightness → %d%%\n", pct);
+    }
+    brightnessBtnPressed = false;
+  }
+  delay(50);
 }

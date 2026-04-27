@@ -48,6 +48,17 @@
 #define USER_DISP_ROT_NONO  0
 #define Rotated USER_DISP_ROT_90   // Landscape mode (640x172)
 
+// Physical buttons
+#define BTN_BRIGHTNESS_PIN  GPIO_NUM_0  // BOOT button = brightness cycle
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+void setSystemBrightness(int pct);
+#ifdef __cplusplus
+}
+#endif
+
 
 
 
